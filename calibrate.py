@@ -25,25 +25,27 @@ Output : data/processed/2026_calibrated_ratings.parquet (+ .csv)
 """
 from __future__ import annotations
 
-import glob
-from pathlib import Path
+import argparse
 
 import pandas as pd
 
+import paths
+from paths import CURRENT_YEAR
 from region_strength import LEAGUE_TO_REGION, INTL_LEAGUES
-
-OUT_DIR = Path("data/processed")
 TOP_LEAGUE_REGION = {"LCK": "KR", "LPL": "CN", "LEC": "EU", "LCS": "NA", "LCP": "APAC"}
 # LCP merged PCS+VCS+LJL+LCO; anchor its teams to their real constituent region.
 LCP_CONSTITUENTS = ["PCS", "VN", "JP", "OCE"]
 
 
-def lcp_team_regions(teams: list[str]) -> dict[str, str]:
+def lcp_team_regions(teams: list[str], year: int = CURRENT_YEAR) -> dict[str, str]:
     """For each LCP team, its constituent region = modal domestic (non-LCP,
-    non-international) league across 2023-2025. Fallback handled by caller."""
+    non-international) league across the 3 seasons before `year`. Fallback
+    handled by caller."""
     hist = {}
-    for f in sorted(glob.glob("data/raw/202[345]_*OraclesElixir.csv")):
-        d = pd.read_csv(f, usecols=["league", "teamname", "position"], low_memory=False)
+    lookback = [y for y in paths.raw_years_available() if year - 3 <= y < year]
+    for y in lookback:
+        d = pd.read_csv(paths.raw_csv(y), usecols=["league", "teamname", "position"],
+                        low_memory=False)
         t = d[(d["position"] == "team") & (d["teamname"].isin(teams))]
         t = t[~t["league"].isin(INTL_LEAGUES | {"LCP"})]
         for team, g in t.groupby("teamname"):
@@ -53,7 +55,8 @@ def lcp_team_regions(teams: list[str]) -> dict[str, str]:
     return {t: max(set(rs), key=rs.count) for t, rs in hist.items()}
 
 
-def home_league(tg: pd.DataFrame, region_elo: pd.Series) -> pd.DataFrame:
+def home_league(tg: pd.DataFrame, region_elo: pd.Series,
+                year: int = CURRENT_YEAR) -> pd.DataFrame:
     """Each team's home top-league = modal league among the 5 qualifiers.
     LCP teams are re-anchored to their real constituent region (PCS/VN/JP/OCE)."""
     top = tg[tg["league"].isin(TOP_LEAGUE_REGION)]
@@ -65,7 +68,7 @@ def home_league(tg: pd.DataFrame, region_elo: pd.Series) -> pd.DataFrame:
     df = pd.DataFrame(rows)
 
     lcp = df[df["home_league"] == "LCP"]["team"].tolist()
-    resolved = lcp_team_regions(lcp)
+    resolved = lcp_team_regions(lcp, year)
     composite = round(region_elo[LCP_CONSTITUENTS].mean(), 1)  # fallback for new orgs
     df["_composite_lcp"] = composite
     df.loc[df["home_league"] == "LCP", "region"] = (
@@ -75,15 +78,19 @@ def home_league(tg: pd.DataFrame, region_elo: pd.Series) -> pd.DataFrame:
     return df
 
 
-def calibrate() -> pd.DataFrame:
-    elo = pd.read_parquet(OUT_DIR / "2026_team_elo.parquet")
-    tg = pd.read_parquet(OUT_DIR / "2026_team_games.parquet")
+def load_region_prior() -> pd.Series:
     # keep_default_na=False: the region code "NA" (North America) must NOT be
     # parsed as a missing value.
-    region = pd.read_csv(OUT_DIR / "region_strength.csv",
-                         keep_default_na=False).set_index("region")["region_elo"]
+    return pd.read_csv(paths.region_strength_csv(),
+                       keep_default_na=False).set_index("region")["region_elo"]
 
-    homes = home_league(tg, region)
+
+def combine(homes: pd.DataFrame, elo: pd.DataFrame, region: pd.Series) -> pd.DataFrame:
+    """Recombine within-league skill with the region prior onto one scale.
+
+    Split out from `calibrate()` so history.py can replay it for past snapshots
+    without duplicating -- and drifting from -- the formula.
+    """
     df = homes.merge(elo[["team", "elo", "n_games", "win_rate"]], on="team", how="left")
 
     league_mean = df.groupby("home_league")["elo"].transform("mean")
@@ -101,19 +108,35 @@ def calibrate() -> pd.DataFrame:
     ]
 
 
+def calibrate(year: int = CURRENT_YEAR) -> pd.DataFrame:
+    elo = pd.read_parquet(paths.processed(year, "team_elo"))
+    tg = pd.read_parquet(paths.processed(year, "team_games"))
+    region = load_region_prior()
+    return combine(home_league(tg, region, year), elo, region)
+
+
 def win_prob(df: pd.DataFrame, a: str, b: str) -> float:
     ra = df.loc[df["team"] == a, "calibrated"].iloc[0]
     rb = df.loc[df["team"] == b, "calibrated"].iloc[0]
     return 1 / (1 + 10 ** ((rb - ra) / 400))
 
 
-def main() -> None:
-    df = calibrate()
-    df.to_parquet(OUT_DIR / "2026_calibrated_ratings.parquet", index=False)
-    df.to_csv(OUT_DIR / "2026_calibrated_ratings.csv", index=False)
+def run(year: int = CURRENT_YEAR) -> pd.DataFrame:
+    df = calibrate(year)
+    paths.ensure_dirs()
+    df.to_parquet(paths.processed(year, "calibrated_ratings"), index=False)
+    df.to_csv(paths.processed(year, "calibrated_ratings", "csv"), index=False)
     print(f"Wrote {len(df)} calibrated ratings (5 Worlds-qualifying leagues)\n")
     print("=== TOP 20 — CROSS-REGION CALIBRATED POWER RANKING ===")
     print(df.head(20).to_string(index=False))
+    return df
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--year", type=int, default=CURRENT_YEAR)
+    run(ap.parse_args().year)
 
 
 if __name__ == "__main__":

@@ -19,13 +19,19 @@ Output: data/processed/region_strength.csv
 """
 from __future__ import annotations
 
-import glob
-from pathlib import Path
+import argparse
 
 import pandas as pd
 
-OUT_DIR = Path("data/processed")
-INTL_LEAGUES = {"WLDs", "MSI", "IEM", "FST", "EWC", "Rift Rivals", "First Stand"}
+import paths
+
+# Verified against every raw CSV 2014-2026. `IWCI` (2016) and `MSC` (2020) are
+# real cross-region events that were previously missing, so they were silently
+# dropped from the region prior. `Rift Rivals`/`First Stand` were listed but
+# match no league code in any year -- the real code is `FST`.
+# Deliberately NOT included: `CCWS` (German ERL) and `Asia Master` (academy
+# teams) look international but are not; their rosters confirm it.
+INTL_LEAGUES = {"WLDs", "MSI", "IEM", "IWCI", "MSC", "FST", "EWC"}
 
 # domestic league code (any year) -> stable macro-region
 LEAGUE_TO_REGION = {
@@ -66,9 +72,9 @@ def home_regions(year_df: pd.DataFrame) -> dict[str, str]:
 def load_intl_games() -> pd.DataFrame:
     """All cross-region international games across years, tagged with regions."""
     rows = []
-    for f in sorted(glob.glob("data/raw/20*_LoL_esports_match_data_from_OraclesElixir.csv")):
-        year = int(Path(f).name[:4])
-        d = pd.read_csv(f, usecols=["gameid", "league", "date", "teamname", "position", "result"],
+    for year in paths.raw_years_available():
+        d = pd.read_csv(paths.raw_csv(year),
+                        usecols=["gameid", "league", "date", "teamname", "position", "result"],
                         low_memory=False)
         team = d[d["position"] == "team"].copy()
         region = home_regions(team)
@@ -122,15 +128,17 @@ def region_elo(games: pd.DataFrame, k: float = 24, year_pull: float = 0.25) -> p
     return out
 
 
-def main() -> None:
-    print("Loading international games 2014-2026...")
+def run() -> pd.DataFrame:
+    """Rebuild the cross-year region prior. Reads every raw CSV, so it is the
+    slow stage -- only rerun it when an international event has completed."""
+    print("Loading international games across all available years...")
     games = load_intl_games()
     print(f"  {len(games)} cross-region international games")
     print(f"  years {games['year'].min()}-{games['year'].max()}")
 
     elo = region_elo(games)
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    elo.to_csv(OUT_DIR / "region_strength.csv", index=False)
+    paths.ensure_dirs()
+    elo.to_csv(paths.region_strength_csv(), index=False)
     print("\n=== HISTORICAL REGION STRENGTH (recency-weighted Elo) ===")
     print(elo.to_string(index=False))
 
@@ -138,6 +146,13 @@ def main() -> None:
     recent = region_elo(games[games["year"] >= games["year"].max() - 2])
     print("\n=== last 3 years only ===")
     print(recent[["region", "region_elo", "intl_games", "intl_winrate"]].head(8).to_string(index=False))
+    return elo
+
+
+def main() -> None:
+    argparse.ArgumentParser(description=__doc__,
+                            formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
+    run()
 
 
 if __name__ == "__main__":

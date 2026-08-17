@@ -20,17 +20,18 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import sys
 from pathlib import Path
 
 import gdown
 
+import paths
+from paths import CURRENT_YEAR, META_PATH, RAW_DIR
+
 FOLDER_ID = "1gLSw0RLjBbtaNy0dgnGQDAZOHIgCe-HH"
 FOLDER_URL = f"https://drive.google.com/drive/folders/{FOLDER_ID}"
-
-RAW_DIR = Path(__file__).parent / "data" / "raw"
-META_PATH = RAW_DIR / "_fetch_meta.json"
 
 # Stable Drive file ids per year (captured from a folder enumeration).
 # If a download starts failing, run `--discover` to refresh these.
@@ -50,11 +51,13 @@ FILE_IDS: dict[int, str] = {
     2026: "1hnpbrUpBMS1TZI7IovfpKeZfWJH1Aptm",
 }
 
-CURRENT_YEAR = dt.date.today().year
-
-
-def filename(year: int) -> str:
-    return f"{year}_LoL_esports_match_data_from_OraclesElixir.csv"
+def sha256(path: Path) -> str:
+    """Content hash, so the scheduler can tell a changed file from a re-download."""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def load_meta() -> dict:
@@ -86,32 +89,43 @@ def discover() -> dict[int, str]:
     return dict(sorted(found.items()))
 
 
-def fetch_year(year: int, force: bool = False) -> Path:
-    """Download one year's CSV. Skips current-version historical files unless forced."""
+def fetch_year(year: int, force: bool = False) -> tuple[Path, bool]:
+    """Download one year's CSV.
+
+    Returns (path, content_changed). `content_changed` is what the scheduler acts
+    on: the current-year file is re-downloaded constantly but only actually
+    differs when new matches have been played.
+    """
     if year not in FILE_IDS:
         raise KeyError(f"No known Drive file id for {year}. Run --discover.")
 
     RAW_DIR.mkdir(parents=True, exist_ok=True)
-    dest = RAW_DIR / filename(year)
+    dest = paths.raw_csv(year)
     meta = load_meta()
     is_historical = year < CURRENT_YEAR
 
     # Historical files don't change: if present and previously fetched, skip.
     if not force and is_historical and dest.exists() and str(year) in meta:
         print(f"[{year}] up to date (historical), skipping")
-        return dest
+        return dest, False
 
     url = f"https://drive.google.com/uc?id={FILE_IDS[year]}"
     print(f"[{year}] downloading -> {dest.name}")
     gdown.download(url, str(dest), quiet=False)
 
+    digest = sha256(dest)
+    prev = meta.get(str(year), {}).get("sha256")
+    changed = prev != digest
+
     meta[str(year)] = {
         "file_id": FILE_IDS[year],
         "fetched_at": dt.datetime.now().isoformat(timespec="seconds"),
         "bytes": dest.stat().st_size,
+        "sha256": digest,
     }
     save_meta(meta)
-    return dest
+    print(f"[{year}] {'content CHANGED' if changed else 'content identical to last fetch'}")
+    return dest, changed
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
@@ -144,10 +158,10 @@ def main(argv: list[str]) -> int:
     else:
         years = [CURRENT_YEAR]
 
-    for year in years:
-        fetch_year(year, force=args.force)
+    changed = [y for y in years if fetch_year(y, force=args.force)[1]]
 
     print("\nDone. Files in", RAW_DIR)
+    print("Years with new content:", changed or "none")
     return 0
 
 

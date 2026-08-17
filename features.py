@@ -35,9 +35,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-TEAM_GAMES = Path("data/processed/2026_team_games.parquet")
-RAW = Path("data/raw/2026_LoL_esports_match_data_from_OraclesElixir.csv")
-OUT_DIR = Path("data/processed")
+import paths
+from paths import CURRENT_YEAR
 
 HALF_LIFE_DAYS = 45  # a game this many days old counts half as much
 
@@ -51,9 +50,10 @@ FEATURES = [
 ]
 
 
-def game_rosters(raw: Path = RAW) -> dict[tuple[str, str], frozenset[str]]:
+def game_rosters(raw: Path | None = None,
+                 year: int = CURRENT_YEAR) -> dict[tuple[str, str], frozenset[str]]:
     """{(gameid, teamname): frozenset of 5 player names} from the raw player rows."""
-    df = pd.read_csv(raw, low_memory=False,
+    df = pd.read_csv(raw or paths.raw_csv(year), low_memory=False,
                      usecols=["gameid", "teamname", "position", "playername"])
     players = df[df["position"] != "team"]
     rosters: dict[tuple[str, str], frozenset[str]] = {}
@@ -134,29 +134,35 @@ def build_profiles(tg: pd.DataFrame, rosters: dict, half_life: float) -> pd.Data
     return profiles.sort_values("win_rate_w", ascending=False).reset_index(drop=True)
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--half-life", type=float, default=HALF_LIFE_DAYS,
-                    help=f"time-decay half-life in days (default {HALF_LIFE_DAYS})")
-    args = ap.parse_args()
-
-    print("Loading", TEAM_GAMES)
-    tg = pd.read_parquet(TEAM_GAMES)
+def run(year: int = CURRENT_YEAR, half_life: float = HALF_LIFE_DAYS) -> pd.DataFrame:
+    team_games = paths.processed(year, "team_games")
+    print("Loading", team_games)
+    tg = pd.read_parquet(team_games)
     tg["date"] = pd.to_datetime(tg["date"])
     print(f"  {len(tg)} team-game rows, {tg['team'].nunique()} teams")
 
     print("Extracting per-game rosters from raw...")
-    rosters = game_rosters()
+    rosters = game_rosters(year=year)
     print(f"  {len(rosters)} team-game rosters")
 
-    print(f"Building profiles (half-life={args.half_life}d)...")
-    profiles = build_profiles(tg, rosters, args.half_life)
+    print(f"Building profiles (half-life={half_life}d)...")
+    profiles = build_profiles(tg, rosters, half_life)
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    pq = OUT_DIR / "2026_team_profiles.parquet"
+    paths.ensure_dirs()
+    pq = paths.processed(year, "team_profiles")
     profiles.to_parquet(pq, index=False)
-    profiles.to_csv(OUT_DIR / "2026_team_profiles.csv", index=False)
+    profiles.to_csv(paths.processed(year, "team_profiles", "csv"), index=False)
     print(f"\nWrote {len(profiles)} team profiles x {profiles.shape[1]} cols -> {pq}")
+    return profiles
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--year", type=int, default=CURRENT_YEAR)
+    ap.add_argument("--half-life", type=float, default=HALF_LIFE_DAYS,
+                    help=f"time-decay half-life in days (default {HALF_LIFE_DAYS})")
+    args = ap.parse_args()
+    run(args.year, args.half_life)
 
 
 if __name__ == "__main__":

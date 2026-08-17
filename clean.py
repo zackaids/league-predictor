@@ -1,7 +1,7 @@
-"""Clean the 2026 Oracle's Elixir data into a tidy team-per-game table.
+"""Clean one season of Oracle's Elixir data into a tidy team-per-game table.
 
-Input : data/raw/2026_LoL_esports_match_data_from_OraclesElixir.csv
-Output: data/processed/2026_team_games.parquet  (+ .csv mirror)
+Input : data/raw/{year}_LoL_esports_match_data_from_OraclesElixir.csv
+Output: data/processed/{year}_team_games.parquet  (+ .csv mirror)
 
 Grain: one row per team per game (2 rows per game). We drop the 10 individual
 player rows and keep only the team-aggregate rows (position == "team"), because
@@ -59,12 +59,13 @@ Deliberately excluded: per-player columns (wrong grain), draft/ban columns
 """
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 
 import pandas as pd
 
-RAW = Path("data/raw/2026_LoL_esports_match_data_from_OraclesElixir.csv")
-OUT_DIR = Path("data/processed")
+import paths
+from paths import CURRENT_YEAR
 
 # raw column -> clean name (straight passthroughs)
 RENAME = {
@@ -105,7 +106,8 @@ BINARY = ["first_blood", "first_dragon", "first_herald", "first_tower",
           "first_baron", "playoffs"]
 
 
-def load_team_rows(path: Path = RAW) -> pd.DataFrame:
+def load_team_rows(path: Path | None = None, year: int = CURRENT_YEAR) -> pd.DataFrame:
+    path = path or paths.raw_csv(year)
     df = pd.read_csv(path, low_memory=False)
     team = df[df["position"] == "team"].copy()
     return team
@@ -160,9 +162,11 @@ def build(team: pd.DataFrame) -> pd.DataFrame:
     return out.reset_index(drop=True)
 
 
-def main() -> None:
-    print("Loading team rows from", RAW)
-    team = load_team_rows()
+def run(year: int = CURRENT_YEAR) -> pd.DataFrame:
+    """Clean one season and write the team-games table. Returns it for callers."""
+    raw = paths.raw_csv(year)
+    print("Loading team rows from", raw)
+    team = load_team_rows(raw)
     print(f"  {len(team)} team rows, {team['gameid'].nunique()} games")
 
     print("Validating...")
@@ -171,17 +175,23 @@ def main() -> None:
     print("Building clean table...")
     clean = build(team)
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    pq = OUT_DIR / "2026_team_games.parquet"
-    csv = OUT_DIR / "2026_team_games.csv"
+    paths.ensure_dirs()
+    pq = paths.processed(year, "team_games")
     clean.to_parquet(pq, index=False)
-    clean.to_csv(csv, index=False)
+    clean.to_csv(paths.processed(year, "team_games", "csv"), index=False)
 
     n_feat = clean.shape[1] - len(CONTEXT) - 3  # minus context + won/gamelength/has_timeline
     print(f"\nWrote {len(clean)} rows x {clean.shape[1]} cols -> {pq}")
     print(f"  ({n_feat} feature columns)")
     print(f"  timeline available on {clean['has_timeline'].mean()*100:.1f}% of rows")
-    print("\nColumns:", list(clean.columns))
+    return clean
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--year", type=int, default=CURRENT_YEAR)
+    run(ap.parse_args().year)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,26 @@
+# Projected Worlds field.
+#
+# These are ASSUMPTIONS, not results. The Worlds field is not confirmed, so the
+# simulation builds a projected field from the top calibrated teams per league.
+# Update this file as qualification firms up -- no code change needed.
+
+# Total teams in the field. Must equal the sum of `slots`.
+size = 16
+
+# Teams locked in regardless of their calibrated rank, as {team, reason} pairs.
+#
+# This list was previously hardcoded in monte_carlo.py as
+#   GUARANTEED = ["Hanwha Life Esports"]  # MSI 2026 champion
+# but there is no MSI in the 2026 dataset at all -- the only 2026 international
+# events are EWC and FST. The justification did not hold, so the list is empty
+# until a team has actually qualified. Add entries like:
+#   guaranteed = [{ team = "Some Team", reason = "won EWC 2026" }]
+guaranteed = []
+
+# Projected slots per qualifying league.
+[slots]
+LCK = 4
+LPL = 4
+LEC = 3
+LCP = 3
+LCS = 2

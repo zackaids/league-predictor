@@ -17,12 +17,11 @@ average Elo per league so you can confirm the pools actually separated.
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 
 import pandas as pd
 
-TEAM_GAMES = Path("data/processed/2026_team_games.parquet")
-OUT_DIR = Path("data/processed")
+import paths
+from paths import CURRENT_YEAR
 
 K_DEFAULT = 30
 BASE = 1500.0
@@ -107,35 +106,46 @@ def win_prob(elo: pd.DataFrame, team_a: str, team_b: str) -> float:
     return expected(ra, rb)
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--k", type=float, default=K_DEFAULT, help=f"Elo K-factor (default {K_DEFAULT})")
-    ap.add_argument("--all-leagues", action="store_true",
-                    help="rate every league (unanchored minor pools inflate; not Worlds-meaningful)")
-    args = ap.parse_args()
-
-    print("Loading", TEAM_GAMES)
-    tg = pd.read_parquet(TEAM_GAMES)
+def scoped_team_games(year: int = CURRENT_YEAR, all_leagues: bool = False) -> pd.DataFrame:
+    """Load the season's team-games table, restricted to the connected pool."""
+    tg = pd.read_parquet(paths.processed(year, "team_games"))
     tg["date"] = pd.to_datetime(tg["date"])
-
-    if not args.all_leagues:
+    if not all_leagues:
         before = tg["gameid"].nunique()
         tg = tg[tg["league"].isin(MAJOR_SCOPE)]
         print(f"Scope: major regions + international ({before} -> {tg['gameid'].nunique()} games). "
               f"Use --all-leagues to rate everything.")
+    return tg
+
+
+def run(year: int = CURRENT_YEAR, k: float = K_DEFAULT,
+        all_leagues: bool = False) -> pd.DataFrame:
+    """Rate one season and write the Elo table. Returns it for callers."""
+    tg = scoped_team_games(year, all_leagues)
 
     print("Building match list...")
     matches = build_matches(tg)
     print(f"  {len(matches)} matches, {matches['date'].min().date()} -> {matches['date'].max().date()}")
 
-    print(f"Running Elo (K={args.k})...")
-    elo = run_elo(matches, args.k)
+    print(f"Running Elo (K={k})...")
+    elo = run_elo(matches, k)
 
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    pq = OUT_DIR / "2026_team_elo.parquet"
+    paths.ensure_dirs()
+    pq = paths.processed(year, "team_elo")
     elo.to_parquet(pq, index=False)
-    elo.to_csv(OUT_DIR / "2026_team_elo.csv", index=False)
+    elo.to_csv(paths.processed(year, "team_elo", "csv"), index=False)
     print(f"\nWrote {len(elo)} team ratings -> {pq}")
+    return elo
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--year", type=int, default=CURRENT_YEAR)
+    ap.add_argument("--k", type=float, default=K_DEFAULT, help=f"Elo K-factor (default {K_DEFAULT})")
+    ap.add_argument("--all-leagues", action="store_true",
+                    help="rate every league (unanchored minor pools inflate; not Worlds-meaningful)")
+    args = ap.parse_args()
+    run(args.year, args.k, args.all_leagues)
 
 
 if __name__ == "__main__":
