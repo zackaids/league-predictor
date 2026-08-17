@@ -21,6 +21,7 @@ import argparse
 import pandas as pd
 
 import paths
+import region_strength
 from paths import CURRENT_YEAR
 
 K_DEFAULT = 30
@@ -30,11 +31,18 @@ BASE = 1500.0
 # international events (First Stand, EWC) that link them keeps every rated team
 # anchored to one scale. Without this, sealed tier-2 pools (e.g. EM) farm Elo
 # internally and float above real majors. This is also the Worlds-relevant set.
-MAJOR_SCOPE = {
+MAJOR_LEAGUES = {
     "LCK", "LPL", "LEC", "LCS", "LCP",   # first-seed major regions
     "PCS", "VCS", "CBLOL", "LJL",        # secondary Worlds-qualifying regions
-    "FST", "EWC",                        # international events (linkers)
 }
+
+# The international events are the only thing chaining the regional pools onto a
+# single scale, so take region_strength's authoritative list rather than keeping
+# a second copy that can silently fall behind it. It had: MSI and WLDs were both
+# missing, so the 71 games of MSI 2026 -- the year's biggest cross-region event,
+# and one this module's own docstring names as a linker -- were dropped from the
+# ratings entirely, along with every Worlds ever played.
+MAJOR_SCOPE = MAJOR_LEAGUES | region_strength.INTL_LEAGUES
 
 
 def expected(r_a: float, r_b: float) -> float:

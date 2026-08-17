@@ -42,12 +42,12 @@ TOP_LEAGUE_REGION = {"LCK": "KR", "LPL": "CN", "LEC": "EU", "LCS": "NA", "LCP": 
 # lands on a real probability scale. It does not: measured on 1,579 historical
 # cross-region games, underdogs win materially more often than the unshrunk
 # formula implies (the 0.1-0.2 predicted bin actually won 31% of the time).
-# Gaps are ~1.32x too wide, so we shrink by 0.76.
+# Gaps are ~1.3x too wide, so we shrink by 0.77.
 #
 # This matters most for monte_carlo.py, where a too-wide gap compounds over
 # every simulated game and inflates the favourite's title odds.
 # Re-fit with `python backtest.py` whenever the rating logic changes.
-RATING_SCALE = 0.76
+RATING_SCALE = 0.77
 
 # Below this many rated games, a team's Elo is dominated by where it started
 # rather than how it played. Such teams stay in the table but are flagged and
