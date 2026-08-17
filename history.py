@@ -40,11 +40,22 @@ PIPELINE_VERSION = 1
 
 
 def _append(name: str, new: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
-    """Merge `new` into the history table, last write winning per key."""
+    """Merge `new` into the history table, replacing whole snapshot dates.
+
+    A snapshot is a complete picture of one date, so the entire date partition
+    is replaced rather than merged per key. Merging per (date, team) would
+    strand rows for teams that dropped out of the ranking between runs -- e.g.
+    a team later excluded for not really belonging to a top league would linger
+    in an old snapshot forever.
+    """
     paths.ensure_dirs()
     path = paths.history(name)
-    combined = pd.concat([pd.read_parquet(path), new], ignore_index=True) \
-        if path.exists() else new
+    if path.exists():
+        old = pd.read_parquet(path)
+        old = old[~old["snapshot_date"].isin(set(new["snapshot_date"]))]
+        combined = pd.concat([old, new], ignore_index=True)
+    else:
+        combined = new
     combined = (combined
                 .drop_duplicates(subset=keys, keep="last")
                 .sort_values(keys)
@@ -96,9 +107,14 @@ def backfill(year: int = CURRENT_YEAR, step_days: int = 7,
     dates = pd.to_datetime(matches["date"])
 
     region = calibrate.load_region_prior()
+    # home_league needs the UNSCOPED table: it decides whether a top-league
+    # appearance is a team's real home by comparing against all its domestic
+    # play, and ERL leagues like EM/LFL are outside elo's MAJOR_SCOPE.
+    tg_all = pd.read_parquet(paths.processed(year, "team_games"))
+    tg_all["date"] = pd.to_datetime(tg_all["date"])
     # Home league is a season-level property; computing it once keeps snapshots
     # comparable instead of letting a team's league flicker early in the year.
-    homes = calibrate.home_league(tg, region, year)
+    homes = calibrate.home_league(tg_all, region, year)
 
     start, end = dates.min(), dates.max()
     cutoffs = list(pd.date_range(start, end, freq=f"{step_days}D"))
