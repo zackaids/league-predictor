@@ -28,6 +28,7 @@ from collections import defaultdict
 
 import pandas as pd
 
+import calibrate
 import paths
 from paths import CURRENT_YEAR
 
@@ -72,7 +73,10 @@ def build_field(df: pd.DataFrame, slots: dict[str, int],
 
 
 def p_game(ra: float, rb: float) -> float:
-    return 1.0 / (1.0 + 10 ** ((rb - ra) / 400.0))
+    # Uses the shrinkage fitted in backtest.py rather than a bare Elo curve:
+    # calibrated gaps are ~1.32x too wide, and that error compounds across the
+    # dozens of games each simulated run plays.
+    return calibrate.prob_from_gap(ra - rb)
 
 
 def sim_series(ra: float, rb: float, need: int) -> bool:

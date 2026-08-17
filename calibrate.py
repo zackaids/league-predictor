@@ -33,6 +33,26 @@ import paths
 from paths import CURRENT_YEAR
 from region_strength import LEAGUE_TO_REGION, INTL_LEAGUES
 TOP_LEAGUE_REGION = {"LCK": "KR", "LPL": "CN", "LEC": "EU", "LCS": "NA", "LCP": "APAC"}
+
+# Multiplier applied to calibrated rating gaps when converting to a win
+# probability.
+#
+# `calibrated` is a SUM of two independently-scaled Elo quantities (a region
+# prior plus a within-region offset), and nothing ever checked that the sum
+# lands on a real probability scale. It does not: measured on 1,579 historical
+# cross-region games, underdogs win materially more often than the unshrunk
+# formula implies (the 0.1-0.2 predicted bin actually won 31% of the time).
+# Gaps are ~1.32x too wide, so we shrink by 0.76.
+#
+# This matters most for monte_carlo.py, where a too-wide gap compounds over
+# every simulated game and inflates the favourite's title odds.
+# Re-fit with `python backtest.py` whenever the rating logic changes.
+RATING_SCALE = 0.76
+
+
+def prob_from_gap(gap: float) -> float:
+    """Win probability for a calibrated rating gap, with the fitted shrinkage."""
+    return 1.0 / (1.0 + 10 ** (-RATING_SCALE * gap / 400.0))
 # LCP merged PCS+VCS+LJL+LCO; anchor its teams to their real constituent region.
 LCP_CONSTITUENTS = ["PCS", "VN", "JP", "OCE"]
 
@@ -118,7 +138,7 @@ def calibrate(year: int = CURRENT_YEAR) -> pd.DataFrame:
 def win_prob(df: pd.DataFrame, a: str, b: str) -> float:
     ra = df.loc[df["team"] == a, "calibrated"].iloc[0]
     rb = df.loc[df["team"] == b, "calibrated"].iloc[0]
-    return 1 / (1 + 10 ** ((rb - ra) / 400))
+    return prob_from_gap(ra - rb)
 
 
 def run(year: int = CURRENT_YEAR) -> pd.DataFrame:
