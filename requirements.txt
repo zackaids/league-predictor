@@ -1,0 +1,6 @@
+gdown>=6.1.0
+pandas>=2.2
+# Required by every pipeline stage's DataFrame.to_parquet / read_parquet call.
+# Was previously only present transitively, so a clean install would crash.
+pyarrow>=15
+streamlit>=1.40

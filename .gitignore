@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+
+# Raw data is large (~900MB) and re-fetchable via fetch_data.py
+data/raw/*.csv
+!data/raw/.gitkeep
+
+# Keep the fetch metadata so freshness is tracked
+!data/raw/_fetch_meta.json
+
+# Local per-machine Claude Code settings
+.claude/settings.local.json
