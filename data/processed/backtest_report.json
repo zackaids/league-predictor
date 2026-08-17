@@ -1,0 +1,363 @@
+{
+  "generated_at": "2026-08-16T23:43:12",
+  "year": 2026,
+  "k": 30,
+  "burn_in": 10,
+  "rating_scale": 0.76,
+  "in_season": {
+    "n_games": 2294,
+    "blue_rate": 0.5483133218982276,
+    "model": {
+      "n": 1749,
+      "log_loss": 0.636723604053497,
+      "brier": 0.2227951991910252,
+      "accuracy": 0.6289308176100629
+    },
+    "baseline_half": {
+      "n": 1749,
+      "log_loss": 0.6931471805599453,
+      "brier": 0.25,
+      "accuracy": 0.5483133218982276
+    },
+    "baseline_blue": {
+      "n": 1749,
+      "log_loss": 0.6884715346369782,
+      "brier": 0.24766582292715825,
+      "accuracy": 0.5483133218982276
+    },
+    "calibration": [
+      {
+        "bin": "(-0.001, 0.1]",
+        "n": 1,
+        "predicted": 0.094,
+        "observed": 0.0,
+        "gap": 0.094
+      },
+      {
+        "bin": "(0.1, 0.2]",
+        "n": 22,
+        "predicted": 0.165,
+        "observed": 0.227,
+        "gap": -0.062
+      },
+      {
+        "bin": "(0.2, 0.3]",
+        "n": 106,
+        "predicted": 0.254,
+        "observed": 0.198,
+        "gap": 0.056
+      },
+      {
+        "bin": "(0.3, 0.4]",
+        "n": 227,
+        "predicted": 0.356,
+        "observed": 0.304,
+        "gap": 0.052
+      },
+      {
+        "bin": "(0.4, 0.5]",
+        "n": 423,
+        "predicted": 0.453,
+        "observed": 0.53,
+        "gap": -0.076
+      },
+      {
+        "bin": "(0.5, 0.6]",
+        "n": 452,
+        "predicted": 0.548,
+        "observed": 0.595,
+        "gap": -0.047
+      },
+      {
+        "bin": "(0.6, 0.7]",
+        "n": 321,
+        "predicted": 0.644,
+        "observed": 0.673,
+        "gap": -0.028
+      },
+      {
+        "bin": "(0.7, 0.8]",
+        "n": 156,
+        "predicted": 0.744,
+        "observed": 0.782,
+        "gap": -0.038
+      },
+      {
+        "bin": "(0.8, 0.9]",
+        "n": 38,
+        "predicted": 0.83,
+        "observed": 0.816,
+        "gap": 0.014
+      },
+      {
+        "bin": "(0.9, 1.0]",
+        "n": 3,
+        "predicted": 0.92,
+        "observed": 0.667,
+        "gap": 0.254
+      }
+    ]
+  },
+  "cross_region": {
+    "events": [
+      {
+        "year": 2015,
+        "event": "WLDs",
+        "n": 15,
+        "raw_logloss": 0.6675,
+        "cal_logloss": 0.6827,
+        "raw_acc": 0.667,
+        "cal_acc": 0.667
+      },
+      {
+        "year": 2016,
+        "event": "MSI",
+        "n": 27,
+        "raw_logloss": 0.6707,
+        "cal_logloss": 0.7359,
+        "raw_acc": 0.667,
+        "cal_acc": 0.444
+      },
+      {
+        "year": 2016,
+        "event": "WLDs",
+        "n": 67,
+        "raw_logloss": 0.7511,
+        "cal_logloss": 0.7045,
+        "raw_acc": 0.537,
+        "cal_acc": 0.597
+      },
+      {
+        "year": 2017,
+        "event": "MSI",
+        "n": 51,
+        "raw_logloss": 0.695,
+        "cal_logloss": 0.698,
+        "raw_acc": 0.569,
+        "cal_acc": 0.49
+      },
+      {
+        "year": 2017,
+        "event": "WLDs",
+        "n": 113,
+        "raw_logloss": 0.781,
+        "cal_logloss": 0.6939,
+        "raw_acc": 0.442,
+        "cal_acc": 0.619
+      },
+      {
+        "year": 2018,
+        "event": "MSI",
+        "n": 72,
+        "raw_logloss": 0.6791,
+        "cal_logloss": 0.6694,
+        "raw_acc": 0.611,
+        "cal_acc": 0.597
+      },
+      {
+        "year": 2018,
+        "event": "WLDs",
+        "n": 119,
+        "raw_logloss": 0.7561,
+        "cal_logloss": 0.6842,
+        "raw_acc": 0.479,
+        "cal_acc": 0.563
+      },
+      {
+        "year": 2019,
+        "event": "MSI",
+        "n": 72,
+        "raw_logloss": 0.691,
+        "cal_logloss": 0.6284,
+        "raw_acc": 0.528,
+        "cal_acc": 0.639
+      },
+      {
+        "year": 2019,
+        "event": "WLDs",
+        "n": 112,
+        "raw_logloss": 0.728,
+        "cal_logloss": 0.6095,
+        "raw_acc": 0.58,
+        "cal_acc": 0.643
+      },
+      {
+        "year": 2020,
+        "event": "WLDs",
+        "n": 103,
+        "raw_logloss": 0.7306,
+        "cal_logloss": 0.6237,
+        "raw_acc": 0.495,
+        "cal_acc": 0.68
+      },
+      {
+        "year": 2021,
+        "event": "MSI",
+        "n": 81,
+        "raw_logloss": 0.6458,
+        "cal_logloss": 0.5313,
+        "raw_acc": 0.605,
+        "cal_acc": 0.704
+      },
+      {
+        "year": 2021,
+        "event": "WLDs",
+        "n": 108,
+        "raw_logloss": 0.7758,
+        "cal_logloss": 0.6644,
+        "raw_acc": 0.463,
+        "cal_acc": 0.639
+      },
+      {
+        "year": 2022,
+        "event": "MSI",
+        "n": 80,
+        "raw_logloss": 0.6595,
+        "cal_logloss": 0.4983,
+        "raw_acc": 0.562,
+        "cal_acc": 0.725
+      },
+      {
+        "year": 2022,
+        "event": "WLDs",
+        "n": 113,
+        "raw_logloss": 0.8432,
+        "cal_logloss": 0.6263,
+        "raw_acc": 0.46,
+        "cal_acc": 0.602
+      },
+      {
+        "year": 2023,
+        "event": "MSI",
+        "n": 57,
+        "raw_logloss": 0.7518,
+        "cal_logloss": 0.659,
+        "raw_acc": 0.456,
+        "cal_acc": 0.561
+      },
+      {
+        "year": 2023,
+        "event": "WLDs",
+        "n": 94,
+        "raw_logloss": 0.8204,
+        "cal_logloss": 0.7432,
+        "raw_acc": 0.479,
+        "cal_acc": 0.543
+      },
+      {
+        "year": 2024,
+        "event": "MSI",
+        "n": 78,
+        "raw_logloss": 0.6675,
+        "cal_logloss": 0.6035,
+        "raw_acc": 0.564,
+        "cal_acc": 0.679
+      },
+      {
+        "year": 2024,
+        "event": "WLDs",
+        "n": 88,
+        "raw_logloss": 0.8062,
+        "cal_logloss": 0.6949,
+        "raw_acc": 0.511,
+        "cal_acc": 0.614
+      },
+      {
+        "year": 2025,
+        "event": "MSI",
+        "n": 67,
+        "raw_logloss": 0.6622,
+        "cal_logloss": 0.6235,
+        "raw_acc": 0.597,
+        "cal_acc": 0.701
+      },
+      {
+        "year": 2025,
+        "event": "WLDs",
+        "n": 62,
+        "raw_logloss": 0.7378,
+        "cal_logloss": 0.5906,
+        "raw_acc": 0.435,
+        "cal_acc": 0.645
+      }
+    ],
+    "n_events": 20,
+    "cal_better": 17,
+    "pooled_n": 1579,
+    "raw_logloss": 0.7376716909436352,
+    "cal_logloss": 0.6448084863837873,
+    "fitted_scale": 0.7600000000000005,
+    "calibration": [
+      {
+        "bin": "(-0.001, 0.1]",
+        "n": 18,
+        "predicted": 0.077,
+        "observed": 0.167,
+        "gap": -0.089
+      },
+      {
+        "bin": "(0.1, 0.2]",
+        "n": 85,
+        "predicted": 0.161,
+        "observed": 0.306,
+        "gap": -0.145
+      },
+      {
+        "bin": "(0.2, 0.3]",
+        "n": 169,
+        "predicted": 0.254,
+        "observed": 0.314,
+        "gap": -0.059
+      },
+      {
+        "bin": "(0.3, 0.4]",
+        "n": 228,
+        "predicted": 0.354,
+        "observed": 0.434,
+        "gap": -0.08
+      },
+      {
+        "bin": "(0.4, 0.5]",
+        "n": 290,
+        "predicted": 0.453,
+        "observed": 0.514,
+        "gap": -0.06
+      },
+      {
+        "bin": "(0.5, 0.6]",
+        "n": 261,
+        "predicted": 0.545,
+        "observed": 0.552,
+        "gap": -0.007
+      },
+      {
+        "bin": "(0.6, 0.7]",
+        "n": 221,
+        "predicted": 0.647,
+        "observed": 0.683,
+        "gap": -0.036
+      },
+      {
+        "bin": "(0.7, 0.8]",
+        "n": 184,
+        "predicted": 0.742,
+        "observed": 0.668,
+        "gap": 0.074
+      },
+      {
+        "bin": "(0.8, 0.9]",
+        "n": 106,
+        "predicted": 0.842,
+        "observed": 0.849,
+        "gap": -0.007
+      },
+      {
+        "bin": "(0.9, 1.0]",
+        "n": 17,
+        "predicted": 0.923,
+        "observed": 0.941,
+        "gap": -0.019
+      }
+    ]
+  }
+}

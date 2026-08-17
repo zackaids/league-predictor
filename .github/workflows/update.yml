@@ -1,0 +1,79 @@
+name: Update ratings
+
+# Oracle's Elixir updates the current-year CSV continuously as matches are
+# played. The fast job polls it, and pipeline.py exits early when the content
+# hash is unchanged, so most runs cost a download and nothing else.
+#
+# The region prior is deliberately NOT on this schedule: it is rebuilt from all
+# 13 raw CSVs (~790MB) and only moves when an international event completes.
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"        # fast path, four times a day
+    - cron: "0 5 * * 1"          # full rebuild, Mondays
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Also rebuild the region prior (downloads every year)"
+        type: boolean
+        default: false
+      force:
+        description: "Recompute even if the raw data is unchanged"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+# Never let two runs push data commits at the same time.
+concurrency:
+  group: update-ratings
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Decide run mode
+        id: mode
+        run: |
+          if [ "${{ github.event.schedule }}" = "0 5 * * 1" ] || [ "${{ inputs.full }}" = "true" ]; then
+            echo "flags=--full" >> "$GITHUB_OUTPUT"
+          else
+            echo "flags=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run pipeline
+        id: pipeline
+        run: |
+          python pipeline.py --fetch ${{ steps.mode.outputs.flags }} \
+            ${{ inputs.force == true && '--force' || '' }}
+
+      - name: Commit updated ratings
+        if: steps.pipeline.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Raw CSVs are gitignored; only the small derived tables are tracked.
+          git add data/processed data/history
+          if git diff --cached --quiet; then
+            echo "Pipeline ran but produced no output changes."
+          else
+            git commit -m "Update ratings ($(date -u +'%Y-%m-%d %H:%MZ'))"
+            git push
+          fi
+
+      - name: Report no-op
+        if: steps.pipeline.outputs.changed != 'true'
+        run: echo "Raw data unchanged since last run; nothing recomputed."

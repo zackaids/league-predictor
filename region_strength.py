@@ -128,10 +128,22 @@ def region_elo(games: pd.DataFrame, k: float = 24, year_pull: float = 0.25) -> p
     return out
 
 
-def run() -> pd.DataFrame:
+def run(min_years: int = 5) -> pd.DataFrame:
     """Rebuild the cross-year region prior. Reads every raw CSV, so it is the
     slow stage -- only rerun it when an international event has completed."""
-    print("Loading international games across all available years...")
+    years = paths.raw_years_available()
+    if len(years) < min_years:
+        # Raw CSVs are gitignored, so a fresh checkout (CI especially) has only
+        # the current year. Recomputing from a partial archive would quietly
+        # replace a prior built on 13 years of results with a near-worthless
+        # one, and every calibrated rating downstream would inherit it.
+        raise RuntimeError(
+            f"Refusing to rebuild the region prior from {len(years)} year(s) of raw "
+            f"data {years}: it is built from cross-year international results, and a "
+            f"partial archive would overwrite a good prior with a bad one. "
+            f"Run `python fetch_data.py --all` first."
+        )
+    print(f"Loading international games across {len(years)} years...")
     games = load_intl_games()
     print(f"  {len(games)} cross-region international games")
     print(f"  years {games['year'].min()}-{games['year'].max()}")

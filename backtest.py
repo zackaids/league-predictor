@@ -42,11 +42,14 @@ Run:
 from __future__ import annotations
 
 import argparse
+import datetime as dt
+import json
 from collections import defaultdict
 
 import numpy as np
 import pandas as pd
 
+import calibrate
 import elo
 import paths
 import region_strength
@@ -319,6 +322,12 @@ def cross_region(k: float = elo.K_DEFAULT, events=("MSI", "WLDs"),
               f"is what monte_carlo.p_game should use.")
         print("\n  calibration curve after shrinking:")
         print(calibration_table(shrink_prob(pooled_diff, scale), pooled_y).to_string())
+
+    # Stashed on the frame so write_report() can persist them without re-running
+    # the whole three-minute sweep over every raw CSV.
+    df.attrs.update(fitted_scale=scale, fitted_logloss=fitted_loss,
+                    pooled_n=len(pooled_y),
+                    calibration=calibration_table(pooled_cal, pooled_y))
     return df
 
 
@@ -342,6 +351,64 @@ def sweep_k(year: int = CURRENT_YEAR, ks=(10, 16, 20, 24, 30, 40, 50),
     return df
 
 
+def _calib_records(table: pd.DataFrame) -> list[dict]:
+    return table.reset_index().astype({"bin": str}).to_dict("records")
+
+
+def write_report(year: int = CURRENT_YEAR, k: float = elo.K_DEFAULT,
+                 burn_in: int = 10, quick: bool = False) -> dict:
+    """Run the tests and persist a JSON summary for the Streamlit app.
+
+    The cross-region test reads every raw CSV, so the app must not run it on
+    page load -- it reads this file instead.
+    """
+    matches = orient(elo.scoped_team_games(year))
+    preds, _, _ = walk_forward(matches, k)
+    ev = preds[preds["n_prior"] >= burn_in]
+    y = ev["y"].to_numpy()
+    blue = float(y.mean())
+
+    report = {
+        "generated_at": dt.datetime.now().isoformat(timespec="seconds"),
+        "year": year, "k": k, "burn_in": burn_in,
+        "rating_scale": calibrate.RATING_SCALE,
+        "in_season": {
+            "n_games": len(matches),
+            "blue_rate": blue,
+            "model": metrics(ev["p"], y),
+            "baseline_half": metrics(np.full(len(y), 0.5), y),
+            "baseline_blue": metrics(np.full(len(y), blue), y),
+            "calibration": _calib_records(calibration_table(ev["p"], y)),
+        },
+    }
+
+    if not quick:
+        df = cross_region(k)
+        if not df.empty:
+            w = df["n"]
+            report["cross_region"] = {
+                "events": df.drop(columns=["cal_better"]).to_dict("records"),
+                "n_events": int(len(df)),
+                "cal_better": int(df["cal_better"].sum()),
+                "pooled_n": int(df.attrs["pooled_n"]),
+                "raw_logloss": float(np.average(df["raw_logloss"], weights=w)),
+                "cal_logloss": float(np.average(df["cal_logloss"], weights=w)),
+                "fitted_scale": df.attrs["fitted_scale"],
+                "calibration": _calib_records(df.attrs["calibration"]),
+            }
+
+    paths.ensure_dirs()
+    path = paths.PROCESSED_DIR / "backtest_report.json"
+    path.write_text(json.dumps(report, indent=2, default=str))
+    print(f"\nWrote backtest report -> {path}")
+    return report
+
+
+def load_report() -> dict | None:
+    path = paths.PROCESSED_DIR / "backtest_report.json"
+    return json.loads(path.read_text()) if path.exists() else None
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -352,7 +419,13 @@ def main() -> None:
     ap.add_argument("--quick", action="store_true",
                     help="skip the historical cross-region test (reads every raw CSV)")
     ap.add_argument("--sweep-k", action="store_true")
+    ap.add_argument("--report", action="store_true",
+                    help="write data/processed/backtest_report.json for the app")
     args = ap.parse_args()
+
+    if args.report:
+        write_report(args.year, args.k, args.burn_in, quick=args.quick)
+        return
 
     in_season(args.year, args.k, args.burn_in)
     if args.sweep_k:

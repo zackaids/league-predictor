@@ -62,9 +62,16 @@ def run(year: int = CURRENT_YEAR, *, fetch: bool = False, full: bool = False,
 
     if fetch:
         import fetch_data
+        if full:
+            # region_strength reads every year, and raw CSVs are gitignored, so
+            # a fresh checkout has nothing to read. Historical years are cached
+            # after the first pull.
+            with stage("fetch all years (required by --full)"):
+                for y in sorted(fetch_data.FILE_IDS):
+                    fetch_data.fetch_year(y, force=False)
         with stage(f"fetch {year}"):
             _, changed = fetch_data.fetch_year(year, force=force)
-        if not changed and not force:
+        if not changed and not force and not full:
             print("\nRaw data unchanged since last fetch -- nothing to recompute.")
             emit_github_output(changed=False)
             return False
@@ -87,6 +94,12 @@ def run(year: int = CURRENT_YEAR, *, fetch: bool = False, full: bool = False,
         calibrate.run(year)
     with stage(f"monte_carlo {year}"):
         monte_carlo.simulate_and_write(year, n_sims, seed)
+
+    if full:
+        # Reads every raw CSV, which only --full guarantees are present.
+        import backtest
+        with stage("backtest report"):
+            backtest.write_report(year)
 
     import history
     with stage("record history snapshot"):
