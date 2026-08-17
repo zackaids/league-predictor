@@ -9,5 +9,11 @@ data/raw/*.csv
 # Keep the fetch metadata so freshness is tracked
 !data/raw/_fetch_meta.json
 
+# team_games is a ~5MB intermediate that clean.py regenerates every run, and
+# nothing outside the pipeline reads it (app.py serves calibrated_ratings and
+# worlds_title_odds). Tracking it meant committing 5MB of churn up to 4x a day.
+data/processed/*_team_games.csv
+data/processed/*_team_games.parquet
+
 # Local per-machine Claude Code settings
 .claude/settings.local.json

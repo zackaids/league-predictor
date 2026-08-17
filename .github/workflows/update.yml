@@ -54,6 +54,20 @@ jobs:
             echo "flags=" >> "$GITHUB_OUTPUT"
           fi
 
+      # A runner checks out with no raw data, so --full would re-pull all 13
+      # CSVs (~790MB) from Drive every Monday against a 60-minute timeout.
+      # Historical years are frozen, so a static key is correct: it is written
+      # once and never refreshed. Only the full path restores it; the fast path
+      # needs the current year alone, which is always re-downloaded anyway.
+      # GitHub evicts caches untouched for 7 days and the full run is weekly, so
+      # an occasional miss is expected -- that just falls back to downloading.
+      - name: Cache raw CSVs
+        if: steps.mode.outputs.flags == '--full'
+        uses: actions/cache@v4
+        with:
+          path: data/raw/*.csv
+          key: raw-csvs-v1
+
       - name: Run pipeline
         id: pipeline
         run: |
@@ -66,7 +80,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           # Raw CSVs are gitignored; only the small derived tables are tracked.
-          git add data/processed data/history
+          # _fetch_meta.json MUST be committed: runners start from a fresh
+          # checkout with no raw data, so the committed sha256 is the only
+          # baseline "did the content change" can be measured against. Leave it
+          # behind and every run recomputes from a permanently stale hash.
+          git add data/processed data/history data/raw/_fetch_meta.json
           if git diff --cached --quiet; then
             echo "Pipeline ran but produced no output changes."
           else
