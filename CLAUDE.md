@@ -57,9 +57,18 @@ are frozen and cached; only the current year re-downloads by default.
 ```
 
 If downloads start failing, run `--discover` first — it flags file-id drift
-against `FILE_IDS`, which then needs manual repair. `_fetch_meta.json` records a
-`sha256` per year; the scheduler uses it to skip recomputation, since the
-current-year file is republished constantly but only sometimes actually differs.
+against `FILE_IDS`, which then needs manual repair. Drive also periodically
+throttles the file outright (*"too many users have viewed or downloaded this
+file recently"*) — that one is upstream and self-clearing, so `fetch_data`
+retries, then raises `TransientFetchError`, and `pipeline.py` skips the run
+(exit 0, `fetch_failed=true`) rather than failing the scheduled job. Downloads
+land in a `.part` sidecar and are header-checked before replacing the cached
+CSV, because a throttled Drive returns *200 OK* with an HTML error page that
+would otherwise be hashed and committed as real content.
+
+`_fetch_meta.json` records a `sha256` per year; the scheduler uses it to skip
+recomputation, since the current-year file is republished constantly but only
+sometimes actually differs.
 
 Raw CSVs (~800MB) are gitignored. `data/processed/` and `data/history/` are
 tracked — Actions commits them back, and Streamlit Cloud serves from them.

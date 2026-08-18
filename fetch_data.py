@@ -23,6 +23,7 @@ import datetime as dt
 import hashlib
 import json
 import sys
+import time
 from pathlib import Path
 
 import gdown
@@ -50,6 +51,85 @@ FILE_IDS: dict[int, str] = {
     2025: "1v6LRphp2kYciU4SXp0PCjEMuev1bDejc",
     2026: "1hnpbrUpBMS1TZI7IovfpKeZfWJH1Aptm",
 }
+
+# Drive rate-limits heavily-shared public files ("Too many users have viewed or
+# downloaded this file recently"). It is by far the most common way a scheduled
+# run dies, it has nothing to do with this repo, and it clears itself -- so it
+# gets its own exception type that callers can choose to skip a run over.
+MAX_ATTEMPTS = 3
+RETRY_WAIT_SECONDS = (15, 60)
+
+# Substrings of upstream errors that mean "come back later", not "you're broken".
+_TRANSIENT_MARKERS = (
+    "too many users have viewed",
+    "quota",
+    "rate limit",
+    "try again later",
+    "temporarily unavailable",
+    "service unavailable",
+    "internal error",
+)
+
+# Every Oracle's Elixir CSV starts with this column.
+_CSV_HEADER_PREFIX = b"gameid,"
+
+
+class TransientFetchError(RuntimeError):
+    """Drive refused the download for a reason that typically clears on its own."""
+
+
+def _is_transient(exc: BaseException) -> bool:
+    # requests' exceptions subclass IOError/OSError, as do plain socket errors.
+    if isinstance(exc, (OSError, TransientFetchError)):
+        return True
+    return any(m in str(exc).lower() for m in _TRANSIENT_MARKERS)
+
+
+def _validate_csv(path: Path) -> None:
+    """Reject anything that isn't actually one of these CSVs.
+
+    Under quota Drive answers *200 OK* with an HTML "Quota exceeded" page, and a
+    dropped connection leaves a truncated file. Either one written to `dest`
+    would be hashed and recorded as legitimate new content -- the scheduler would
+    then commit a bogus sha256 that every later run measures against.
+    """
+    with open(path, "rb") as f:
+        head = f.read(len(_CSV_HEADER_PREFIX))
+    if head != _CSV_HEADER_PREFIX:
+        raise TransientFetchError(
+            f"{path.name}: not a match-data CSV (starts with {head!r}); "
+            "Drive most likely served an error page"
+        )
+
+
+def _download(url: str, dest: Path) -> None:
+    """Fetch `url` to `dest`, retrying transient failures.
+
+    Writes to a sidecar file and renames only once the payload looks right, so a
+    failed attempt can never corrupt the cached CSV.
+    """
+    tmp = dest.with_suffix(dest.suffix + ".part")
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            tmp.unlink(missing_ok=True)
+            if gdown.download(url, str(tmp), quiet=False) is None:
+                raise TransientFetchError(f"gdown returned no file for {url}")
+            _validate_csv(tmp)
+            tmp.replace(dest)
+            return
+        except Exception as exc:
+            tmp.unlink(missing_ok=True)
+            if not _is_transient(exc):
+                raise
+            if attempt == MAX_ATTEMPTS:
+                raise TransientFetchError(
+                    f"giving up after {MAX_ATTEMPTS} attempts: {exc}"
+                ) from exc
+            wait = RETRY_WAIT_SECONDS[min(attempt - 1, len(RETRY_WAIT_SECONDS) - 1)]
+            print(f"  transient download failure ({exc.__class__.__name__}); "
+                  f"retrying in {wait}s [{attempt}/{MAX_ATTEMPTS}]", file=sys.stderr)
+            time.sleep(wait)
+
 
 def sha256(path: Path) -> str:
     """Content hash, so the scheduler can tell a changed file from a re-download."""
@@ -111,7 +191,7 @@ def fetch_year(year: int, force: bool = False) -> tuple[Path, bool]:
 
     url = f"https://drive.google.com/uc?id={FILE_IDS[year]}"
     print(f"[{year}] downloading -> {dest.name}")
-    gdown.download(url, str(dest), quiet=False)
+    _download(url, dest)
 
     digest = sha256(dest)
     prev = meta.get(str(year), {}).get("sha256")
@@ -158,7 +238,12 @@ def main(argv: list[str]) -> int:
     else:
         years = [CURRENT_YEAR]
 
-    changed = [y for y in years if fetch_year(y, force=args.force)[1]]
+    try:
+        changed = [y for y in years if fetch_year(y, force=args.force)[1]]
+    except TransientFetchError as exc:
+        print(f"\nUpstream is throttling us, nothing downloaded: {exc}", file=sys.stderr)
+        print("This clears on its own; try again later.", file=sys.stderr)
+        return 1
 
     print("\nDone. Files in", RAW_DIR)
     print("Years with new content:", changed or "none")

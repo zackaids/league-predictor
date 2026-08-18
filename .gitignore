@@ -4,6 +4,8 @@ __pycache__/
 
 # Raw data is large (~900MB) and re-fetchable via fetch_data.py
 data/raw/*.csv
+# Sidecar of an in-flight download; a killed run can leave one behind.
+data/raw/*.part
 !data/raw/.gitkeep
 
 # Keep the fetch metadata so freshness is tracked

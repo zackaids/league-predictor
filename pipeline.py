@@ -12,7 +12,8 @@ Two paths, because the stages have very different costs:
 With --fetch, the current year's CSV is downloaded first and the pipeline exits
 early when its content hash is unchanged. Oracle's Elixir republishes the file
 continuously, so "was it re-downloaded" is a useless signal; "did the bytes
-change" is the real one.
+change" is the real one. If Drive is throttling the download, the run is skipped
+rather than failed -- see fetch_data.TransientFetchError.
 
 Usage:
     python pipeline.py                      # fast, current year, no fetch
@@ -62,15 +63,27 @@ def run(year: int = CURRENT_YEAR, *, fetch: bool = False, full: bool = False,
 
     if fetch:
         import fetch_data
-        if full:
-            # region_strength reads every year, and raw CSVs are gitignored, so
-            # a fresh checkout has nothing to read. Historical years are cached
-            # after the first pull.
-            with stage("fetch all years (required by --full)"):
-                for y in sorted(fetch_data.FILE_IDS):
-                    fetch_data.fetch_year(y, force=False)
-        with stage(f"fetch {year}"):
-            _, changed = fetch_data.fetch_year(year, force=force)
+        try:
+            if full:
+                # region_strength reads every year, and raw CSVs are gitignored,
+                # so a fresh checkout has nothing to read. Historical years are
+                # cached after the first pull.
+                with stage("fetch all years (required by --full)"):
+                    for y in sorted(fetch_data.FILE_IDS):
+                        fetch_data.fetch_year(y, force=False)
+            with stage(f"fetch {year}"):
+                _, changed = fetch_data.fetch_year(year, force=force)
+        except fetch_data.TransientFetchError as exc:
+            # Drive periodically throttles the public file -- an upstream
+            # condition that clears itself. The schedule polls every 6h and a
+            # runner has no raw CSV to fall back on, so the correct response is
+            # to skip this run, not to fail the job and page a human about
+            # someone else's rate limit. The stages below would only crash on
+            # missing input anyway.
+            print(f"\nFetch unavailable: {exc}")
+            print("Skipping this run; the next scheduled run picks it up.")
+            emit_github_output(changed=False, fetch_failed=True)
+            return False
         if not changed and not force and not full:
             print("\nRaw data unchanged since last fetch -- nothing to recompute.")
             emit_github_output(changed=False)

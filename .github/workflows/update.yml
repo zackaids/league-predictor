@@ -92,6 +92,15 @@ jobs:
             git push
           fi
 
+      # Google Drive throttles the source file from time to time ("too many
+      # users have viewed or downloaded this file recently"). pipeline.py skips
+      # the run instead of failing, since the next poll is only 6h away -- but
+      # surface it, so a *persistent* outage is still visible in the run list.
+      - name: Warn on throttled fetch
+        if: steps.pipeline.outputs.fetch_failed == 'true'
+        run: |
+          echo "::warning title=Fetch skipped::Google Drive throttled the Oracle's Elixir download; no data fetched this run."
+
       - name: Report no-op
-        if: steps.pipeline.outputs.changed != 'true'
+        if: steps.pipeline.outputs.changed != 'true' && steps.pipeline.outputs.fetch_failed != 'true'
         run: echo "Raw data unchanged since last run; nothing recomputed."
