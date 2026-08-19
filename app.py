@@ -59,6 +59,77 @@ def load_report() -> dict | None:
     return backtest.load_report()
 
 
+# ------------------------------------------------------------------ movement
+
+# Movement is measured against a snapshot a chosen distance back, never against
+# "the previous row": snapshots land weekly during a backfill but daily once the
+# scheduler takes over, so the previous row is usually yesterday and every team
+# would read as flat.
+MOVE_WINDOWS = {"1 week": 7, "2 weeks": 14, "1 month": 30, "Season": None}
+
+SPARK_POINTS = 12
+
+
+def _baseline_date(dates: pd.Series, days: int | None) -> pd.Timestamp:
+    """The snapshot nearest to `days` ago -- nearest, not the newest one that
+    is fully that old. Snapshot spacing jumps from weekly to daily mid-season,
+    so "at least a week old" silently reaches back a fortnight instead."""
+    if days is None:
+        return dates.min()
+    earlier = dates[dates < dates.max()]
+    if earlier.empty:
+        return dates.min()
+    target = dates.max() - pd.Timedelta(days=days)
+    return earlier.iloc[(earlier - target).abs().argmin()]
+
+
+@st.cache_data
+def load_movement(days: int | None) -> tuple[pd.DataFrame, str]:
+    """Per-team rank/rating change and a recent `calibrated` sparkline.
+
+    Ranks come from the *unfiltered* ranking on both ends. A team's arrow has
+    to mean "it climbed", not "the league filter changed who is above it", so
+    the movement column deliberately ignores the sidebar filters.
+    """
+    h = load_history()
+    if h.empty:
+        return pd.DataFrame(), ""
+
+    dates = h["snapshot_date"].drop_duplicates().sort_values()
+    base_date = _baseline_date(dates, days)
+    base = (h[h["snapshot_date"] == base_date]
+            .rename(columns={"rank": "prev_rank", "calibrated": "prev_calibrated"})
+            [["team", "prev_rank", "prev_calibrated"]])
+
+    recent = set(dates.nlargest(SPARK_POINTS))
+    trend = (h[h["snapshot_date"].isin(recent)]
+             .sort_values("snapshot_date")
+             .groupby("team")["calibrated"].apply(list)
+             .rename("trend").reset_index())
+
+    return base.merge(trend, on="team", how="outer"), base_date.date().isoformat()
+
+
+def _arrow(delta) -> str:
+    """Rank delta as a glyph. Positive delta = moved up the table."""
+    if pd.isna(delta):
+        return "new"
+    delta = int(delta)
+    if delta > 0:
+        return f"\u25b2 {delta}"
+    if delta < 0:
+        return f"\u25bc {abs(delta)}"
+    return "\u2013"
+
+
+def _move_style(val: str) -> str:
+    if val.startswith("\u25b2"):
+        return "color: #16a34a; font-weight: 600"
+    if val.startswith("\u25bc"):
+        return "color: #dc2626; font-weight: 600"
+    return "color: rgba(128, 128, 128, 0.8)"
+
+
 def data_age_banner() -> None:
     """The whole point of the scheduler is fresh data, so make staleness loud."""
     h = load_history()
@@ -80,39 +151,91 @@ def page_ranking() -> None:
     )
     df = load_ratings()
 
-    c1, c2 = st.columns([1, 3])
+    c1, c2, c3 = st.columns([1, 1, 3])
     show_low = c1.checkbox("Include low-sample teams", value=False,
                            help="Teams with fewer than 20 rated games; their ratings are mostly noise.")
-    leagues = c2.multiselect("Leagues", sorted(df["home_league"].unique()),
+    window = c2.selectbox("Movement vs", list(MOVE_WINDOWS), index=0,
+                          help="How far back the \u25b2/\u25bc column compares to.")
+    leagues = c3.multiselect("Leagues", sorted(df["home_league"].unique()),
                              default=sorted(df["home_league"].unique()))
 
-    view = df[df["home_league"].isin(leagues)]
+    # Rank over the whole table first: movement must survive the filters below,
+    # otherwise deselecting a league would look like every team climbed.
+    view = history.ranked(df)
+    move, baseline = load_movement(MOVE_WINDOWS[window])
+    if not move.empty:
+        view = view.merge(move, on="team", how="left")
+        view["move"] = (view["prev_rank"] - view["rank"]).map(_arrow)
+        view["\u0394 rating"] = view["calibrated"] - view["prev_calibrated"]
+        # A team with no history at all would leave NaN in an otherwise
+        # list-valued column, which Arrow refuses to serialise.
+        view["trend"] = view["trend"].map(lambda v: v if isinstance(v, list) else [])
+
+    view = view[view["home_league"].isin(leagues)]
     if not show_low:
         view = view[~view["low_sample"]]
-    view = view.reset_index(drop=True)
-    view.insert(0, "#", view.index + 1)
+    view = view.sort_values("rank").reset_index(drop=True)
+    # Places gained, kept before the display columns are dropped so the movers
+    # line reads a number instead of parsing its own arrows back out.
+    places = (view["prev_rank"] - view["rank"]) if "move" in view else None
+    view.insert(0, "#", view["rank"])
     view["win_rate"] = view["win_rate"] * 100
+    view = view.drop(columns=["rank", "prev_rank", "prev_calibrated"], errors="ignore")
+
+    if "move" in view:
+        view = view[["#", "move", "\u0394 rating", "trend"]
+                    + [c for c in view.columns
+                       if c not in {"#", "move", "\u0394 rating", "trend"}]]
+
+    column_config = {
+        "calibrated": st.column_config.ProgressColumn(
+            "calibrated", format="%.1f",
+            min_value=float(view["calibrated"].min()),
+            max_value=float(view["calibrated"].max())),
+        "win_rate": st.column_config.NumberColumn("win rate", format="%.1f%%"),
+        "within_league": st.column_config.NumberColumn("within league", format="%+.1f"),
+        "elo": st.column_config.NumberColumn(format="%.1f"),
+        "region_elo": st.column_config.NumberColumn("region elo", format="%.1f"),
+        "low_sample": st.column_config.CheckboxColumn("low sample"),
+        "move": st.column_config.TextColumn(
+            "move", help="Places gained or lost against the whole ranking, "
+                         "not just the leagues shown."),
+        "\u0394 rating": st.column_config.NumberColumn("\u0394 rating", format="%+.1f"),
+        "trend": st.column_config.LineChartColumn(
+            "trend", help=f"`calibrated` over the last {SPARK_POINTS} snapshots."),
+    }
 
     # ProgressColumn rather than a pandas background_gradient: the latter needs
     # matplotlib, which is not worth a dependency for one column of shading.
-    st.dataframe(
-        view, width="stretch", hide_index=True,
-        column_config={
-            "calibrated": st.column_config.ProgressColumn(
-                "calibrated", format="%.1f",
-                min_value=float(view["calibrated"].min()),
-                max_value=float(view["calibrated"].max())),
-            "win_rate": st.column_config.NumberColumn("win rate", format="%.1f%%"),
-            "within_league": st.column_config.NumberColumn("within league", format="%+.1f"),
-            "elo": st.column_config.NumberColumn(format="%.1f"),
-            "region_elo": st.column_config.NumberColumn("region elo", format="%.1f"),
-            "low_sample": st.column_config.CheckboxColumn("low sample"),
-        },
-    )
+    # The Styler is only carrying the arrow colours -- st.dataframe cannot tint
+    # a single cell from column_config alone.
+    styled = view.style.map(_move_style, subset=["move"]) if "move" in view else view
+    st.dataframe(styled, width="stretch", hide_index=True, column_config=column_config)
+
+    if "move" in view:
+        st.caption(f"Movement measured against the {baseline} snapshot.")
+        _movers_caption(view["team"], places)
 
     n_low = int(df["low_sample"].sum())
     if n_low and not show_low:
         st.caption(f"{n_low} low-sample team(s) hidden.")
+
+
+def _movers_caption(teams: pd.Series, places: pd.Series) -> None:
+    """One line naming the biggest riser and faller, so the table has a lede."""
+    moved = pd.DataFrame({"team": teams, "places": places}).dropna()
+    moved = moved[moved["places"] != 0]
+    if moved.empty:
+        st.caption("No rank changes over this window.")
+        return
+    bits = []
+    up = moved.nlargest(1, "places").iloc[0]
+    if up["places"] > 0:
+        bits.append(f":green[\u25b2 {up['team']} +{int(up['places'])}]")
+    down = moved.nsmallest(1, "places").iloc[0]
+    if down["places"] < 0:
+        bits.append(f":red[\u25bc {down['team']} {int(down['places'])}]")
+    st.caption("Biggest movers: " + " \u00b7 ".join(bits))
 
 
 def page_history() -> None:
