@@ -73,7 +73,7 @@ def _stamp(df: pd.DataFrame, snapshot: str, as_of: str) -> pd.DataFrame:
     return df
 
 
-def _ranked(df: pd.DataFrame) -> pd.DataFrame:
+def ranked(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df["rank"] = df["calibrated"].rank(ascending=False, method="min").astype("Int64")
     return df
@@ -89,7 +89,7 @@ def record(year: int = CURRENT_YEAR, snapshot_date: str | None = None) -> pd.Dat
     as_of = pd.to_datetime(tg["date"]).max().date().isoformat()
     snapshot = snapshot_date or dt.date.today().isoformat()
 
-    out = _append(RATINGS, _stamp(_ranked(ratings), snapshot, as_of),
+    out = _append(RATINGS, _stamp(ranked(ratings), snapshot, as_of),
                   keys=["snapshot_date", "team"])
 
     odds_path = paths.processed(year, "worlds_title_odds", "csv")
@@ -131,7 +131,7 @@ def backfill(year: int = CURRENT_YEAR, step_days: int = 7,
             continue
         ratings = calibrate.combine(homes, elo.run_elo(prefix, k), region)
         stamp = cutoff.date().isoformat()
-        frames.append(_stamp(_ranked(ratings), stamp, stamp))
+        frames.append(_stamp(ranked(ratings), stamp, stamp))
 
     if not frames:
         raise ValueError("No snapshots produced -- is the team-games table empty?")
