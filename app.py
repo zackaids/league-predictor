@@ -65,7 +65,13 @@ def load_report() -> dict | None:
 # "the previous row": snapshots land weekly during a backfill but daily once the
 # scheduler takes over, so the previous row is usually yesterday and every team
 # would read as flat.
-MOVE_WINDOWS = {"1 week": 7, "2 weeks": 14, "1 month": 30, "Season": None}
+#
+# "1 day" is that same measurement with days=1, not a special "previous row"
+# case -- across the backfilled stretch of a season the snapshot nearest
+# yesterday can be several days old, and the caption names the date it actually
+# landed on. It is not the default: one day of play moves very few teams.
+MOVE_WINDOWS = {"1 day": 1, "1 week": 7, "2 weeks": 14, "1 month": 30, "Season": None}
+DEFAULT_WINDOW = "1 week"
 
 SPARK_POINTS = 12
 
@@ -154,7 +160,8 @@ def page_ranking() -> None:
     c1, c2, c3 = st.columns([1, 1, 3])
     show_low = c1.checkbox("Include low-sample teams", value=False,
                            help="Teams with fewer than 20 rated games; their ratings are mostly noise.")
-    window = c2.selectbox("Movement vs", list(MOVE_WINDOWS), index=0,
+    window = c2.selectbox("Movement vs", list(MOVE_WINDOWS),
+                          index=list(MOVE_WINDOWS).index(DEFAULT_WINDOW),
                           help="How far back the \u25b2/\u25bc column compares to.")
     leagues = c3.multiselect("Leagues", sorted(df["home_league"].unique()),
                              default=sorted(df["home_league"].unique()))
