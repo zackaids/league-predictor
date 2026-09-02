@@ -1,11 +1,11 @@
 team,home_league,region,elo,within_league,region_elo,calibrated,n_games,win_rate,low_sample
+Gen.G,LCK,KR,1777.6,242.7,1734.4,1977.1,111,0.739,False
 Hanwha Life Esports,LCK,KR,1759.7,224.8,1734.4,1959.2,118,0.644,False
-Gen.G,LCK,KR,1751.9,217.0,1734.4,1951.4,108,0.731,False
 Dplus Kia,LCK,KR,1676.0,141.1,1734.4,1875.5,133,0.556,False
 Bilibili Gaming,LPL,CN,1730.5,216.3,1638.9,1855.2,165,0.709,False
 T1,LCK,KR,1651.2,116.3,1734.4,1850.7,137,0.642,False
-KT Rolster,LCK,KR,1610.4,75.5,1734.4,1809.9,99,0.495,False
 Karmine Corp,LEC,EU,1731.6,234.6,1566.7,1801.3,127,0.654,False
+KT Rolster,LCK,KR,1584.7,49.8,1734.4,1784.2,102,0.48,False
 LYON,LCS,NA,1726.7,228.4,1498.9,1727.3,104,0.635,False
 Ninjas in Pyjamas,LPL,CN,1601.5,87.3,1638.9,1726.2,84,0.571,False
 Team Secret Whales,LCP,APAC*,1723.2,256.2,1465.6,1721.8,102,0.706,False
