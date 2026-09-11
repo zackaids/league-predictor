@@ -15,10 +15,12 @@ from __future__ import annotations
 import datetime as dt
 import json
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
 import backtest
+import elo
 import history
 import paths
 from paths import CURRENT_YEAR
@@ -57,6 +59,12 @@ def load_freshness() -> dict:
 @st.cache_data
 def load_report() -> dict | None:
     return backtest.load_report()
+
+
+@st.cache_data
+def load_series(year: int = YEAR) -> pd.DataFrame:
+    path = paths.processed(year, "series")
+    return pd.read_parquet(path) if path.exists() else pd.DataFrame()
 
 
 # ------------------------------------------------------------------ movement
@@ -147,7 +155,80 @@ def data_age_banner() -> None:
     (st.warning if days > 14 else st.caption)(msg)
 
 
+# ------------------------------------------------------------------ navigation
+
+def open_team(team: str) -> None:
+    """Jump to the Team page. Must run as a widget callback: callbacks fire
+    before the rerun renders the sidebar radio, the only moment its state may
+    still be changed."""
+    st.session_state["page"] = "Team"
+    st.session_state["team"] = team
+
+
 # ------------------------------------------------------------------ pages
+
+FEED_WINDOWS = {"7d": 7, "30d": 30, "Season": None}
+FEED_SIZE = 15
+
+
+def feed_series(series: pd.DataFrame, teams: set[str], window: str,
+                order: str) -> pd.DataFrame:
+    shown = series[series["team_a"].isin(teams) | series["team_b"].isin(teams)]
+    days = FEED_WINDOWS[window]
+    if days is not None:
+        # Measured back from the latest game, not from today: the data can
+        # trail the clock by weeks, and a clock window would silently be empty.
+        shown = shown[shown["date"] > series["date"].max() - pd.Timedelta(days=days)]
+    keys = ["swing", "date"] if order == "Biggest swings" else ["date"]
+    return shown.sort_values(keys, ascending=False).head(FEED_SIZE)
+
+
+def team_row(team: str, wins: int, delta: float, clickable: set[str], key: str) -> None:
+    name, score, change = st.columns([5, 1, 2], vertical_alignment="center")
+    if team in clickable:
+        name.button(team, key=key, type="tertiary", on_click=open_team, args=(team,))
+    else:
+        name.markdown(team)  # outside the ranking (e.g. LJL), so no Team page
+    score.markdown(f"**{wins}**")
+    change.markdown(f":{'green' if delta >= 0 else 'red'}[{delta:+.1f}]")
+
+
+def match_card(s, clickable: set[str]) -> None:
+    with st.container(border=True):
+        head = f"{s.date:%b %d} · {s.league}" + (" · Playoffs" if s.playoffs else "")
+        if s.upset:
+            head += " · :orange-badge[UPSET]"
+        st.caption(head)
+        team_row(s.team_a, s.wins_a, s.delta_a, clickable, f"feed_{s.series_id}_a")
+        team_row(s.team_b, s.wins_b, -s.delta_a, clickable, f"feed_{s.series_id}_b")
+        st.caption(" · ".join(f"G{i} {w}" for i, w in enumerate(s.games.split("|"), 1)))
+
+
+def match_feed(teams: set[str], clickable: set[str]) -> None:
+    st.subheader("Matches")
+    series = load_series()
+    if series.empty:
+        st.info("No match data yet. Run `python pipeline.py`.")
+        return
+    order = st.radio("Order", ["Biggest swings", "Latest"], key="feed_order",
+                     horizontal=True, label_visibility="collapsed")
+    window = st.radio("Window", list(FEED_WINDOWS), index=1, key="feed_window",
+                      horizontal=True, label_visibility="collapsed")
+    shown = feed_series(series, teams, window, order)
+    if shown.empty:
+        st.caption("No series in this window.")
+        return
+    with st.container(height=640):
+        for s in shown.itertuples(index=False):
+            match_card(s, clickable)
+    st.caption("Raw Elo points exchanged over the series.")
+
+
+def select_ranking_row() -> None:
+    rows = st.session_state["ranking_table"].selection.rows
+    if rows:
+        open_team(st.session_state["ranking_teams"][rows[0]])
+
 
 def page_ranking() -> None:
     st.header("Cross-region power ranking")
@@ -189,10 +270,13 @@ def page_ranking() -> None:
     view["win_rate"] = view["win_rate"] * 100
     view = view.drop(columns=["rank", "prev_rank", "prev_calibrated"], errors="ignore")
 
-    if "move" in view:
-        view = view[["#", "move", "\u0394 rating", "trend"]
-                    + [c for c in view.columns
-                       if c not in {"#", "move", "\u0394 rating", "trend"}]]
+    # `calibrated` leads with the team: sharing the row with the match feed
+    # leaves the table too narrow to show it in its original position.
+    lead = (["#", "move", "\u0394 rating", "trend"] if "move" in view else ["#"]) \
+        + ["team", "calibrated"]
+    view = view[lead + [c for c in view.columns if c not in lead]]
+    # The row-click callback only receives row positions.
+    st.session_state["ranking_teams"] = view["team"].tolist()
 
     column_config = {
         "calibrated": st.column_config.ProgressColumn(
@@ -212,20 +296,28 @@ def page_ranking() -> None:
             "trend", help=f"`calibrated` over the last {SPARK_POINTS} snapshots."),
     }
 
-    # ProgressColumn rather than a pandas background_gradient: the latter needs
-    # matplotlib, which is not worth a dependency for one column of shading.
-    # The Styler is only carrying the arrow colours -- st.dataframe cannot tint
-    # a single cell from column_config alone.
-    styled = view.style.map(_move_style, subset=["move"]) if "move" in view else view
-    st.dataframe(styled, width="stretch", hide_index=True, column_config=column_config)
+    table, feed = st.columns([3, 2], gap="large")
+    with table:
+        # ProgressColumn rather than a pandas background_gradient: the latter needs
+        # matplotlib, which is not worth a dependency for one column of shading.
+        # The Styler is only carrying the arrow colours -- st.dataframe cannot tint
+        # a single cell from column_config alone.
+        styled = view.style.map(_move_style, subset=["move"]) if "move" in view else view
+        st.dataframe(styled, width="stretch", hide_index=True, column_config=column_config,
+                     key="ranking_table", on_select=select_ranking_row,
+                     selection_mode="single-row")
 
-    if "move" in view:
-        st.caption(f"Movement measured against the {baseline} snapshot.")
-        _movers_caption(view["team"], places)
+        if "move" in view:
+            st.caption(f"Movement measured against the {baseline} snapshot.")
+            _movers_caption(view["team"], places)
 
-    n_low = int(df["low_sample"].sum())
-    if n_low and not show_low:
-        st.caption(f"{n_low} low-sample team(s) hidden.")
+        n_low = int(df["low_sample"].sum())
+        if n_low and not show_low:
+            st.caption(f"{n_low} low-sample team(s) hidden.")
+        st.caption("Click a row to open that team's page.")
+
+    with feed:
+        match_feed(set(view["team"]), set(df["team"]))
 
 
 def _movers_caption(teams: pd.Series, places: pd.Series) -> None:
@@ -243,6 +335,67 @@ def _movers_caption(teams: pd.Series, places: pd.Series) -> None:
     if down["places"] < 0:
         bits.append(f":red[\u25bc {down['team']} {int(down['places'])}]")
     st.caption("Biggest movers: " + " \u00b7 ".join(bits))
+
+
+def page_team() -> None:
+    st.header("Team breakdown")
+    ratings = load_ratings()
+    series = load_series()
+    if series.empty:
+        st.info("No match data yet. Run `python pipeline.py`.")
+        return
+
+    teams = ratings["team"].tolist()  # calibrated_ratings is already rank order
+    if st.session_state.get("team") not in teams:
+        st.session_state["team"] = teams[0]
+    team = st.selectbox("Team", teams, key="team")
+
+    r = ratings.set_index("team").loc[team]
+    view = elo.team_perspective(series, team)
+    # Measured from the data, not the clock -- see match_feed.
+    recent = view[view["date"] > series["date"].max() - pd.Timedelta(days=30)]
+    outcomes = view["outcome"].value_counts()
+    series_record = f"{outcomes.get('W', 0)}-{outcomes.get('L', 0)}"
+    if outcomes.get("D", 0):
+        series_record += f"-{outcomes['D']}"
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric(f"Calibrated · #{teams.index(team) + 1}", f"{r['calibrated']:.1f}")
+    c2.metric("Elo", f"{r['elo']:.1f}")
+    c3.metric("Series", series_record)
+    c4.metric("Games", f"{int(view['won'].sum())}-{int(view['lost'].sum())}")
+    c5.metric("Elo, last 30 days", f"{recent['elo_change'].sum():+.1f}")
+    if r["low_sample"]:
+        st.caption("Fewer than 20 rated games: this rating is mostly noise.")
+
+    if view.empty:
+        st.info(f"No rated series for {team}.")
+        return
+
+    # Altair rather than st.line_chart, whose y-axis starts at 0 and flattens a
+    # 1300-1800 Elo line until no series visibly moves it.
+    st.altair_chart(
+        alt.Chart(view).mark_line(point=True).encode(
+            x=alt.X("date:T", title=None),
+            y=alt.Y("elo_after:Q", title="Elo", scale=alt.Scale(zero=False)),
+            tooltip=[alt.Tooltip("date:T", format="%b %d"), "opponent", "score",
+                     alt.Tooltip("elo_change:Q", title="Elo change", format="+.1f"),
+                     alt.Tooltip("elo_after:Q", title="Elo after", format=".1f")],
+        ).properties(height=300),
+        width="stretch",
+    )
+    st.dataframe(
+        view.drop(columns=["won", "lost"]), width="stretch", hide_index=True,
+        column_config={
+            "date": st.column_config.DatetimeColumn(format="MMM D, YYYY"),
+            "outcome": st.column_config.TextColumn("result"),
+            "elo_change": st.column_config.NumberColumn("Elo change", format="%+.1f"),
+            "elo_after": st.column_config.NumberColumn("Elo after", format="%.1f"),
+            "upset": st.column_config.CheckboxColumn(),
+        },
+    )
+    st.caption("Elo change, not calibrated. League games move calibrated by the "
+               "same amount; international games by ~90%.")
 
 
 def page_history() -> None:
@@ -349,13 +502,14 @@ def page_health() -> None:
 
 PAGES = {
     "Power ranking": page_ranking,
+    "Team": page_team,
     "Rating history": page_history,
     "Worlds odds": page_odds,
     "Model health": page_health,
 }
 
 st.sidebar.title("🏆 Worlds Predictor")
-choice = st.sidebar.radio("Page", list(PAGES))
+choice = st.sidebar.radio("Page", list(PAGES), key="page")
 st.sidebar.caption("Oracle's Elixir data · updated by GitHub Actions")
 
 data_age_banner()

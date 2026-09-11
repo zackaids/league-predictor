@@ -2,6 +2,9 @@
 
 Input : data/processed/2026_team_games.parquet   (from clean.py)
 Output: data/processed/2026_team_elo.parquet      (+ .csv mirror)
+        data/processed/2026_series.parquet        (+ .csv mirror; one row per
+                                                   series with each team's Elo
+                                                   change, read by app.py)
 
 Standard Elo, single chronological pass over all 5,935 games:
 
@@ -26,6 +29,15 @@ from paths import CURRENT_YEAR
 
 K_DEFAULT = 30
 BASE = 1500.0
+
+# A new series starts when a pair's game number stops increasing, or when the
+# pair has not played for this long. The gap is the fallback for games with no
+# game number.
+SERIES_GAP = pd.Timedelta(hours=12)
+
+# A series win counts as an upset when the winner's pre-series chance of taking
+# any single game was below this.
+UPSET_P = 0.40
 
 # Elo is only valid within a CONNECTED pool. Restricting to major regions + the
 # international events (First Stand, EWC) that link them keeps every rated team
@@ -64,13 +76,22 @@ def build_matches(tg: pd.DataFrame) -> pd.DataFrame:
         matches.append({
             "date": w["date"], "gameid": gid, "league": w["league"],
             "playoffs": int(w["playoffs"]),
+            # .get: a team-games table written before clean.py kept `game`
+            # still rates; group_series then falls back to the time gap.
+            "game": w.get("game", float("nan")),
             "winner": w["team"], "loser": l["team"],
         })
     m = pd.DataFrame(matches).sort_values(["date", "gameid"]).reset_index(drop=True)
     return m
 
 
-def run_elo(matches: pd.DataFrame, k: float = K_DEFAULT) -> pd.DataFrame:
+def run_elo(matches: pd.DataFrame, k: float = K_DEFAULT,
+            game_log: list[dict] | None = None) -> pd.DataFrame:
+    """Rate `matches` in order. If `game_log` is given, append one dict per game.
+
+    The log is filled from this loop rather than a second replay, so the rating
+    changes the app shows cannot drift from the ratings themselves.
+    """
     rating: dict[str, float] = {}
     peak: dict[str, float] = {}
     wins: dict[str, int] = {}
@@ -87,6 +108,14 @@ def run_elo(matches: pd.DataFrame, k: float = K_DEFAULT) -> pd.DataFrame:
         ew = expected(rw, rl)
         rating[w] = rw + k * (1 - ew)
         rating[l] = rl + k * (0 - (1 - ew))
+        if game_log is not None:
+            game_log.append({
+                "gameid": row.gameid, "date": row.date, "league": row.league,
+                "playoffs": row.playoffs, "game": getattr(row, "game", float("nan")),
+                "winner": w, "loser": l,
+                "winner_elo_before": rw, "loser_elo_before": rl,
+                "delta": k * (1 - ew), "p_winner": ew,
+            })
         for t, win in ((w, 1), (l, 0)):
             wins[t] = wins.get(t, 0) + win
             games[t] = games.get(t, 0) + 1
@@ -106,6 +135,94 @@ def run_elo(matches: pd.DataFrame, k: float = K_DEFAULT) -> pd.DataFrame:
         "last_game_date": [pd.Timestamp(last_date[t]).date().isoformat() for t in rating],
     })
     return out.sort_values("elo", ascending=False).reset_index(drop=True)
+
+
+def replay(matches: pd.DataFrame, k: float = K_DEFAULT) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Rate the matches and keep every game's rating change.
+
+    Returns (team table, games): the table is exactly `run_elo`'s; `games` has
+    one row per game with both teams' Elo before it and the points exchanged.
+    """
+    log: list[dict] = []
+    table = run_elo(matches, k, game_log=log)
+    return table, pd.DataFrame(log)
+
+
+def group_series(games: pd.DataFrame) -> pd.DataFrame:
+    """Collapse `replay`'s per-game log into one row per series."""
+    games = games.sort_values(["date", "gameid"]).reset_index(drop=True)
+    open_series: dict[tuple, tuple] = {}   # (league, pair) -> (series_id, game, date)
+    ids = []
+    for row in games.itertuples(index=False):
+        key = (row.league, frozenset((row.winner, row.loser)))
+        prev = open_series.get(key)
+        restarted = (prev is not None and pd.notna(row.game) and pd.notna(prev[1])
+                     and row.game <= prev[1])
+        if prev is None or restarted or row.date - prev[2] > SERIES_GAP:
+            series_id = row.gameid
+        else:
+            series_id = prev[0]
+        open_series[key] = (series_id, row.game, row.date)
+        ids.append(series_id)
+    games["series_id"] = ids
+
+    out = pd.DataFrame([_series_row(sid, g)
+                        for sid, g in games.groupby("series_id", sort=False)])
+    out.insert(out.columns.get_loc("upset"), "swing", out["delta_a"].abs())
+    return out
+
+
+def _series_row(series_id: str, g: pd.DataFrame) -> dict:
+    first, last = g.iloc[0], g.iloc[-1]
+    wins = g["winner"].value_counts()
+    t1, t2 = first["winner"], first["loser"]
+    if wins.get(t1, 0) == wins.get(t2, 0):
+        a, b = sorted((t1, t2))
+    elif wins.get(t1, 0) > wins.get(t2, 0):
+        a, b = t1, t2
+    else:
+        a, b = t2, t1
+
+    def before(team: str, game: pd.Series) -> float:
+        return game["winner_elo_before"] if game["winner"] == team else game["loser_elo_before"]
+
+    def after(team: str, game: pd.Series) -> float:
+        return before(team, game) + (game["delta"] if game["winner"] == team else -game["delta"])
+
+    wins_a, wins_b = int(wins.get(a, 0)), int(wins.get(b, 0))
+    a_before, b_before = before(a, first), before(b, first)
+    return {
+        "series_id": series_id, "date": first["date"], "league": first["league"],
+        "playoffs": int(first["playoffs"]), "team_a": a, "team_b": b,
+        "wins_a": wins_a, "wins_b": wins_b,
+        "result": "draw" if wins_a == wins_b else "win",
+        "games": "|".join(g["winner"]),
+        "a_elo_before": round(a_before, 1), "a_elo_after": round(after(a, last), 1),
+        "b_elo_before": round(b_before, 1), "b_elo_after": round(after(b, last), 1),
+        # Each game is zero-sum, so team_b's change is always -delta_a.
+        "delta_a": round(float(g["delta"].where(g["winner"] == a, -g["delta"]).sum()), 1),
+        "upset": bool(wins_a > wins_b and expected(a_before, b_before) < UPSET_P),
+    }
+
+
+def team_perspective(series: pd.DataFrame, team: str) -> pd.DataFrame:
+    """Every series `team` played, from its own side, newest first."""
+    keep = ["date", "league", "playoffs", "upset"]
+    a = series[series["team_a"] == team]
+    b = series[series["team_b"] == team]
+    out = pd.concat([
+        a[keep].assign(opponent=a["team_b"], won=a["wins_a"], lost=a["wins_b"],
+                       elo_change=a["delta_a"], elo_after=a["a_elo_after"]),
+        b[keep].assign(opponent=b["team_a"], won=b["wins_b"], lost=b["wins_a"],
+                       elo_change=-b["delta_a"], elo_after=b["b_elo_after"]),
+    ]).sort_values("date", ascending=False).reset_index(drop=True)
+    out["outcome"] = "D"
+    out.loc[out["won"] > out["lost"], "outcome"] = "W"
+    out.loc[out["won"] < out["lost"], "outcome"] = "L"
+    out["score"] = out["won"].astype(str) + "-" + out["lost"].astype(str)
+    out["stage"] = out["playoffs"].map({1: "Playoffs", 0: "Regular"})
+    return out[["date", "league", "stage", "opponent", "outcome", "score",
+                "won", "lost", "elo_change", "elo_after", "upset"]]
 
 
 def win_prob(elo: pd.DataFrame, team_a: str, team_b: str) -> float:
@@ -136,13 +253,20 @@ def run(year: int = CURRENT_YEAR, k: float = K_DEFAULT,
     print(f"  {len(matches)} matches, {matches['date'].min().date()} -> {matches['date'].max().date()}")
 
     print(f"Running Elo (K={k})...")
-    elo = run_elo(matches, k)
+    elo, games = replay(matches, k)
+    series = group_series(games)
 
     paths.ensure_dirs()
     pq = paths.processed(year, "team_elo")
     elo.to_parquet(pq, index=False)
     elo.to_csv(paths.processed(year, "team_elo", "csv"), index=False)
     print(f"\nWrote {len(elo)} team ratings -> {pq}")
+
+    # team_games is gitignored, so the app cannot rebuild this; commit it.
+    series_pq = paths.processed(year, "series")
+    series.to_parquet(series_pq, index=False)
+    series.to_csv(paths.processed(year, "series", "csv"), index=False)
+    print(f"Wrote {len(series)} series ({len(games)} games) -> {series_pq}")
     return elo
 
 

@@ -136,6 +136,16 @@ already-qualified teams are assumptions, so they live in config) and simulates
 Swiss + Bo5 knockout. Its RNG is seeded by default so scheduled reruns don't
 jitter the odds when ratings haven't moved.
 
+**Series log.** `elo.run()` also writes `{year}_series.parquet`: one row per
+series with both teams' Elo before/after and the net change, which the app's
+match feed and Team page read. It comes from the rating loop itself
+(`run_elo(game_log=...)`), not a second replay, so it cannot drift from the
+ratings. It must be committed: `team_games` is gitignored, so Streamlit Cloud
+cannot rebuild it. Series are split when a pair's `game` number stops
+increasing, or after a 12h gap when the number is missing. The feed shows raw
+Elo deltas; for league games that equals the change in `calibrated`, for
+internationals it is ~10% larger.
+
 ## Validation
 
 `backtest.py` is the source of truth for whether a change helps. Three tests, all

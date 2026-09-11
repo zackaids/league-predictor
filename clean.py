@@ -94,7 +94,9 @@ DIFFS = {
     "plate_diff": ("turretplates", "opp_turretplates"),
 }
 
-CONTEXT = ["gameid", "date", "league", "split", "playoffs", "patch",
+# `game` is the game number within a series (G1, G2, ...); elo.group_series
+# uses it to tell a Bo3 from three separate Bo1s.
+CONTEXT = ["gameid", "date", "league", "split", "playoffs", "game", "patch",
            "side", "team", "teamid", "datacompleteness"]
 
 PASSTHROUGH = ["gspd", "gpr", "ckpm", "team_kpm", "dpm", "vspm", "wcpm",
@@ -141,6 +143,7 @@ def build(team: pd.DataFrame) -> pd.DataFrame:
     # types
     out["date"] = pd.to_datetime(out["date"])
     out["playoffs"] = team["playoffs"].astype("int8")
+    out["game"] = pd.to_numeric(team["game"], errors="coerce")
 
     # target + game length
     out["won"] = team["result"].astype(bool)
