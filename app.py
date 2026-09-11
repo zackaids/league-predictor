@@ -19,6 +19,7 @@ import pandas as pd
 import streamlit as st
 
 import backtest
+import elo
 import history
 import paths
 from paths import CURRENT_YEAR
@@ -59,6 +60,12 @@ def load_report() -> dict | None:
     return backtest.load_report()
 
 
+@st.cache_data
+def load_series(year: int = YEAR) -> pd.DataFrame:
+    path = paths.processed(year, "series")
+    return pd.read_parquet(path) if path.exists() else pd.DataFrame()
+
+
 def data_age_banner() -> None:
     """The whole point of the scheduler is fresh data, so make staleness loud."""
     h = load_history()
@@ -68,6 +75,16 @@ def data_age_banner() -> None:
     days = (dt.date.today() - as_of).days
     msg = f"Ratings reflect games through **{as_of}** ({days} days ago)."
     (st.warning if days > 14 else st.caption)(msg)
+
+
+# ------------------------------------------------------------------ navigation
+
+def open_team(team: str) -> None:
+    """Jump to the Team page. Must run as a widget callback: callbacks fire
+    before the rerun renders the sidebar radio, the only moment its state may
+    still be changed."""
+    st.session_state["page"] = "Team"
+    st.session_state["team"] = team
 
 
 # ------------------------------------------------------------------ pages
@@ -113,6 +130,57 @@ def page_ranking() -> None:
     n_low = int(df["low_sample"].sum())
     if n_low and not show_low:
         st.caption(f"{n_low} low-sample team(s) hidden.")
+
+
+def page_team() -> None:
+    st.header("Team breakdown")
+    ratings = load_ratings()
+    series = load_series()
+    if series.empty:
+        st.info("No match data yet. Run `python pipeline.py`.")
+        return
+
+    teams = ratings["team"].tolist()  # calibrated_ratings is already rank order
+    if st.session_state.get("team") not in teams:
+        st.session_state["team"] = teams[0]
+    team = st.selectbox("Team", teams, key="team")
+
+    r = ratings.set_index("team").loc[team]
+    view = elo.team_perspective(series, team)
+    # Measured from the data, not the clock -- see match_feed.
+    recent = view[view["date"] > series["date"].max() - pd.Timedelta(days=30)]
+    outcomes = view["outcome"].value_counts()
+    series_record = f"{outcomes.get('W', 0)}-{outcomes.get('L', 0)}"
+    if outcomes.get("D", 0):
+        series_record += f"-{outcomes['D']}"
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric(f"Calibrated · #{teams.index(team) + 1}", f"{r['calibrated']:.1f}")
+    c2.metric("Elo", f"{r['elo']:.1f}")
+    c3.metric("Series", series_record)
+    c4.metric("Games", f"{int(view['won'].sum())}-{int(view['lost'].sum())}")
+    c5.metric("Elo, last 30 days", f"{recent['elo_change'].sum():+.1f}")
+    if r["low_sample"]:
+        st.caption("Fewer than 20 rated games: this rating is mostly noise.")
+
+    if view.empty:
+        st.info(f"No rated series for {team}.")
+        return
+
+    st.line_chart(view.set_index("date")["elo_after"].sort_index(), height=300,
+                  y_label="Elo")
+    st.dataframe(
+        view.drop(columns=["won", "lost"]), width="stretch", hide_index=True,
+        column_config={
+            "date": st.column_config.DatetimeColumn(format="MMM D, YYYY"),
+            "outcome": st.column_config.TextColumn("result"),
+            "elo_change": st.column_config.NumberColumn("Elo change", format="%+.1f"),
+            "elo_after": st.column_config.NumberColumn("Elo after", format="%.1f"),
+            "upset": st.column_config.CheckboxColumn(),
+        },
+    )
+    st.caption("Elo change, not calibrated. League games move calibrated by the "
+               "same amount; international games by ~90%.")
 
 
 def page_history() -> None:
@@ -219,13 +287,14 @@ def page_health() -> None:
 
 PAGES = {
     "Power ranking": page_ranking,
+    "Team": page_team,
     "Rating history": page_history,
     "Worlds odds": page_odds,
     "Model health": page_health,
 }
 
 st.sidebar.title("🏆 Worlds Predictor")
-choice = st.sidebar.radio("Page", list(PAGES))
+choice = st.sidebar.radio("Page", list(PAGES), key="page")
 st.sidebar.caption("Oracle's Elixir data · updated by GitHub Actions")
 
 data_age_banner()
