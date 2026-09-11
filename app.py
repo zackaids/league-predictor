@@ -15,6 +15,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -179,8 +180,12 @@ def page_ranking() -> None:
     with table:
         # ProgressColumn rather than a pandas background_gradient: the latter needs
         # matplotlib, which is not worth a dependency for one column of shading.
+        # `calibrated` goes right after the team: sharing the row with the feed
+        # leaves the table too narrow to show it in its original position.
+        lead = ["#", "team", "calibrated"]
         st.dataframe(
             view, width="stretch", hide_index=True,
+            column_order=lead + [c for c in view.columns if c not in lead],
             key="ranking_table", on_select=select_ranking_row,
             selection_mode="single-row",
             column_config={
@@ -240,8 +245,18 @@ def page_team() -> None:
         st.info(f"No rated series for {team}.")
         return
 
-    st.line_chart(view.set_index("date")["elo_after"].sort_index(), height=300,
-                  y_label="Elo")
+    # Altair rather than st.line_chart, whose y-axis starts at 0 and flattens a
+    # 1300-1800 Elo line until no series visibly moves it.
+    st.altair_chart(
+        alt.Chart(view).mark_line(point=True).encode(
+            x=alt.X("date:T", title=None),
+            y=alt.Y("elo_after:Q", title="Elo", scale=alt.Scale(zero=False)),
+            tooltip=[alt.Tooltip("date:T", format="%b %d"), "opponent", "score",
+                     alt.Tooltip("elo_change:Q", title="Elo change", format="+.1f"),
+                     alt.Tooltip("elo_after:Q", title="Elo after", format=".1f")],
+        ).properties(height=300),
+        width="stretch",
+    )
     st.dataframe(
         view.drop(columns=["won", "lost"]), width="stretch", hide_index=True,
         column_config={
