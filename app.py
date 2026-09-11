@@ -89,6 +89,69 @@ def open_team(team: str) -> None:
 
 # ------------------------------------------------------------------ pages
 
+FEED_WINDOWS = {"7d": 7, "30d": 30, "Season": None}
+FEED_SIZE = 15
+
+
+def feed_series(series: pd.DataFrame, teams: set[str], window: str,
+                order: str) -> pd.DataFrame:
+    shown = series[series["team_a"].isin(teams) | series["team_b"].isin(teams)]
+    days = FEED_WINDOWS[window]
+    if days is not None:
+        # Measured back from the latest game, not from today: the data can
+        # trail the clock by weeks, and a clock window would silently be empty.
+        shown = shown[shown["date"] > series["date"].max() - pd.Timedelta(days=days)]
+    keys = ["swing", "date"] if order == "Biggest swings" else ["date"]
+    return shown.sort_values(keys, ascending=False).head(FEED_SIZE)
+
+
+def team_row(team: str, wins: int, delta: float, clickable: set[str], key: str) -> None:
+    name, score, change = st.columns([5, 1, 2], vertical_alignment="center")
+    if team in clickable:
+        name.button(team, key=key, type="tertiary", on_click=open_team, args=(team,))
+    else:
+        name.markdown(team)  # outside the ranking (e.g. LJL), so no Team page
+    score.markdown(f"**{wins}**")
+    change.markdown(f":{'green' if delta >= 0 else 'red'}[{delta:+.1f}]")
+
+
+def match_card(s, clickable: set[str]) -> None:
+    with st.container(border=True):
+        head = f"{s.date:%b %d} · {s.league}" + (" · Playoffs" if s.playoffs else "")
+        if s.upset:
+            head += " · :orange-badge[UPSET]"
+        st.caption(head)
+        team_row(s.team_a, s.wins_a, s.delta_a, clickable, f"feed_{s.series_id}_a")
+        team_row(s.team_b, s.wins_b, -s.delta_a, clickable, f"feed_{s.series_id}_b")
+        st.caption(" · ".join(f"G{i} {w}" for i, w in enumerate(s.games.split("|"), 1)))
+
+
+def match_feed(teams: set[str], clickable: set[str]) -> None:
+    st.subheader("Matches")
+    series = load_series()
+    if series.empty:
+        st.info("No match data yet. Run `python pipeline.py`.")
+        return
+    order = st.radio("Order", ["Biggest swings", "Latest"], key="feed_order",
+                     horizontal=True, label_visibility="collapsed")
+    window = st.radio("Window", list(FEED_WINDOWS), index=1, key="feed_window",
+                      horizontal=True, label_visibility="collapsed")
+    shown = feed_series(series, teams, window, order)
+    if shown.empty:
+        st.caption("No series in this window.")
+        return
+    with st.container(height=640):
+        for s in shown.itertuples(index=False):
+            match_card(s, clickable)
+    st.caption("Raw Elo points exchanged over the series.")
+
+
+def select_ranking_row() -> None:
+    rows = st.session_state["ranking_table"].selection.rows
+    if rows:
+        open_team(st.session_state["ranking_teams"][rows[0]])
+
+
 def page_ranking() -> None:
     st.header("Cross-region power ranking")
     st.caption(
@@ -109,27 +172,37 @@ def page_ranking() -> None:
     view = view.reset_index(drop=True)
     view.insert(0, "#", view.index + 1)
     view["win_rate"] = view["win_rate"] * 100
+    # The row-click callback only receives row positions.
+    st.session_state["ranking_teams"] = view["team"].tolist()
 
-    # ProgressColumn rather than a pandas background_gradient: the latter needs
-    # matplotlib, which is not worth a dependency for one column of shading.
-    st.dataframe(
-        view, width="stretch", hide_index=True,
-        column_config={
-            "calibrated": st.column_config.ProgressColumn(
-                "calibrated", format="%.1f",
-                min_value=float(view["calibrated"].min()),
-                max_value=float(view["calibrated"].max())),
-            "win_rate": st.column_config.NumberColumn("win rate", format="%.1f%%"),
-            "within_league": st.column_config.NumberColumn("within league", format="%+.1f"),
-            "elo": st.column_config.NumberColumn(format="%.1f"),
-            "region_elo": st.column_config.NumberColumn("region elo", format="%.1f"),
-            "low_sample": st.column_config.CheckboxColumn("low sample"),
-        },
-    )
+    table, feed = st.columns([3, 2], gap="large")
+    with table:
+        # ProgressColumn rather than a pandas background_gradient: the latter needs
+        # matplotlib, which is not worth a dependency for one column of shading.
+        st.dataframe(
+            view, width="stretch", hide_index=True,
+            key="ranking_table", on_select=select_ranking_row,
+            selection_mode="single-row",
+            column_config={
+                "calibrated": st.column_config.ProgressColumn(
+                    "calibrated", format="%.1f",
+                    min_value=float(view["calibrated"].min()),
+                    max_value=float(view["calibrated"].max())),
+                "win_rate": st.column_config.NumberColumn("win rate", format="%.1f%%"),
+                "within_league": st.column_config.NumberColumn("within league", format="%+.1f"),
+                "elo": st.column_config.NumberColumn(format="%.1f"),
+                "region_elo": st.column_config.NumberColumn("region elo", format="%.1f"),
+                "low_sample": st.column_config.CheckboxColumn("low sample"),
+            },
+        )
 
-    n_low = int(df["low_sample"].sum())
-    if n_low and not show_low:
-        st.caption(f"{n_low} low-sample team(s) hidden.")
+        n_low = int(df["low_sample"].sum())
+        if n_low and not show_low:
+            st.caption(f"{n_low} low-sample team(s) hidden.")
+        st.caption("Click a row to open that team's page.")
+
+    with feed:
+        match_feed(set(view["team"]), set(df["team"]))
 
 
 def page_team() -> None:
