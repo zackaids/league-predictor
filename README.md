@@ -42,7 +42,7 @@ Raw CSVs (~800MB) are gitignored; re-fetch them with the commands above.
 
 ```bash
 .venv/bin/python pipeline.py --fetch     # fetch, re-rate, simulate, snapshot history
-.venv/bin/streamlit run app.py           # power ranking, history, odds, model health
+.venv/bin/streamlit run app.py           # power ranking + match feed, team, history, odds, model health
 ```
 
 `pipeline.py` exits early when the raw data hasn't changed. A GitHub Actions cron
