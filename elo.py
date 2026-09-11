@@ -64,13 +64,22 @@ def build_matches(tg: pd.DataFrame) -> pd.DataFrame:
         matches.append({
             "date": w["date"], "gameid": gid, "league": w["league"],
             "playoffs": int(w["playoffs"]),
+            # .get: a team-games table written before clean.py kept `game`
+            # still rates; group_series then falls back to the time gap.
+            "game": w.get("game", float("nan")),
             "winner": w["team"], "loser": l["team"],
         })
     m = pd.DataFrame(matches).sort_values(["date", "gameid"]).reset_index(drop=True)
     return m
 
 
-def run_elo(matches: pd.DataFrame, k: float = K_DEFAULT) -> pd.DataFrame:
+def run_elo(matches: pd.DataFrame, k: float = K_DEFAULT,
+            game_log: list[dict] | None = None) -> pd.DataFrame:
+    """Rate `matches` in order. If `game_log` is given, append one dict per game.
+
+    The log is filled from this loop rather than a second replay, so the rating
+    changes the app shows cannot drift from the ratings themselves.
+    """
     rating: dict[str, float] = {}
     peak: dict[str, float] = {}
     wins: dict[str, int] = {}
@@ -87,6 +96,14 @@ def run_elo(matches: pd.DataFrame, k: float = K_DEFAULT) -> pd.DataFrame:
         ew = expected(rw, rl)
         rating[w] = rw + k * (1 - ew)
         rating[l] = rl + k * (0 - (1 - ew))
+        if game_log is not None:
+            game_log.append({
+                "gameid": row.gameid, "date": row.date, "league": row.league,
+                "playoffs": row.playoffs, "game": getattr(row, "game", float("nan")),
+                "winner": w, "loser": l,
+                "winner_elo_before": rw, "loser_elo_before": rl,
+                "delta": k * (1 - ew), "p_winner": ew,
+            })
         for t, win in ((w, 1), (l, 0)):
             wins[t] = wins.get(t, 0) + win
             games[t] = games.get(t, 0) + 1
@@ -106,6 +123,17 @@ def run_elo(matches: pd.DataFrame, k: float = K_DEFAULT) -> pd.DataFrame:
         "last_game_date": [pd.Timestamp(last_date[t]).date().isoformat() for t in rating],
     })
     return out.sort_values("elo", ascending=False).reset_index(drop=True)
+
+
+def replay(matches: pd.DataFrame, k: float = K_DEFAULT) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Rate the matches and keep every game's rating change.
+
+    Returns (team table, games): the table is exactly `run_elo`'s; `games` has
+    one row per game with both teams' Elo before it and the points exchanged.
+    """
+    log: list[dict] = []
+    table = run_elo(matches, k, game_log=log)
+    return table, pd.DataFrame(log)
 
 
 def win_prob(elo: pd.DataFrame, team_a: str, team_b: str) -> float:
