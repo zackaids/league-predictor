@@ -563,11 +563,7 @@ def page_bracket() -> None:
         "17th": pct, "18th": pct, "19th": pct,
     })
 
-    fallbacks = field[field["rating_source"] != "calibrated"]
-    st.caption("Ratings are calibrated Elo. " + " ".join(
-        f"{r.team} is outside the rated pool, so its rating is its domestic league's "
-        f"region prior plus its Elo offset from that league's average ({r.rating_source})."
-        for r in fallbacks.itertuples()))
+    st.caption("Ratings are the cross-region calibrated Elo from the power ranking.")
     st.caption("The model ignores the upper-bracket side-selection advantage.")
 
 

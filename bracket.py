@@ -14,9 +14,8 @@ Bracket (a loser's finishing place in brackets):
     LF       L(UB) v W(LB)                      loser out (18th)
     QF       W(UB) v W(LF)                      winner -> Swiss, loser out (17th)
 
-Ratings are the calibrated Elo from calibrate.py. A team outside the rated pool
-(CBLOL's FURIA) gets a fallback built the same way calibrate.combine does:
-region prior + (Elo - mean Elo of its domestic league's established teams).
+Ratings are the calibrated Elo from calibrate.py. All six Worlds leagues are in
+its pool, so every Play-In team has one.
 
 Run:
     python bracket.py        # write {year}_playin_field.csv and print the odds
@@ -33,7 +32,6 @@ import pandas as pd
 import calibrate
 import paths
 from paths import CURRENT_YEAR
-from region_strength import INTL_LEAGUES, LEAGUE_TO_REGION
 
 CONFIG = paths.ROOT / "worlds_bracket.toml"
 
@@ -224,53 +222,23 @@ def resolve_results(cfg: dict, series: pd.DataFrame) -> dict[str, dict]:
 
 # ------------------------------------------------------------------ ratings
 
-def team_rating(data_name: str, cal: pd.DataFrame, elo: pd.DataFrame,
-                team_games: pd.DataFrame | None) -> tuple[float, str, str]:
-    """(rating, source, home league) for one team.
-
-    A team in calibrated_ratings uses it as-is. Otherwise build the same sum
-    calibrate.combine does -- region prior + (Elo - league mean Elo) -- for the
-    team's domestic league. The Elo is the global one from elo.py, not a
-    league-only re-rating: calibrate measures offsets on that scale, and the
-    league mean has to come from the same scale or the sum is not comparable.
-    """
+def team_rating(data_name: str, cal: pd.DataFrame) -> tuple[float, str]:
+    """(calibrated rating, home league) for one team, by Oracle's Elixir name."""
     row = cal[cal["team"] == data_name]
-    if len(row):
-        return float(row["calibrated"].iloc[0]), "calibrated", row["home_league"].iloc[0]
-
-    me = elo[elo["team"] == data_name]
-    if me.empty:
-        raise ValueError(f"{data_name!r} has no calibrated rating and no Elo")
-    if team_games is None:
-        raise ValueError(f"{data_name!r} needs a fallback rating but team_games is missing; "
-                         f"run `python clean.py`")
-
-    dom = team_games[~team_games["league"].isin(INTL_LEAGUES)]
-    home = dom.groupby("team")["league"].agg(lambda s: s.value_counts().idxmax())
-    league = home.get(data_name)
-    region = LEAGUE_TO_REGION.get(league)
-    if region is None:
-        raise ValueError(f"{data_name!r}: domestic league {league!r} has no region mapping")
-
-    peers = elo[elo["team"].isin(home[home == league].index)
-                & (elo["n_games"] >= calibrate.MIN_GAMES)]
-    within = float(me["elo"].iloc[0]) - float(peers["elo"].mean())
-    rating = float(calibrate.load_region_prior()[region]) + within
-    return round(rating, 1), f"{league} fallback", league
+    if row.empty:
+        raise ValueError(f"{data_name!r} is not in calibrated_ratings -- check "
+                         f"`data_name` in {CONFIG.name}")
+    return float(row["calibrated"].iloc[0]), row["home_league"].iloc[0]
 
 
 def build_field(cfg: dict, year: int = CURRENT_YEAR) -> pd.DataFrame:
     cal = pd.read_parquet(paths.processed(year, "calibrated_ratings"))
-    elo = pd.read_parquet(paths.processed(year, "team_elo"))
-    tg_path = paths.processed(year, "team_games")
-    tg = pd.read_parquet(tg_path, columns=["team", "league"]) if tg_path.exists() else None
-
     rows = []
     for t in cfg["teams"]:
         data_name = t.get("data_name", t["name"])
-        rating, source, league = team_rating(data_name, cal, elo, tg)
+        rating, league = team_rating(data_name, cal)
         rows.append({"team": t["name"], "data_name": data_name, "seed": t["seed"],
-                     "home_league": league, "rating": rating, "rating_source": source})
+                     "home_league": league, "rating": rating})
     return pd.DataFrame(rows)
 
 

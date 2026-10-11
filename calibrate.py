@@ -14,9 +14,9 @@ Both terms are in Elo points (400 = 10x odds), so they add directly. The region
 term is anchored by 13 years of international results, so a mid-table LCK team can
 correctly outrank the best LCP team.
 
-Scope = the five Worlds-qualifying top leagues (LCK, LPL, LEC, LCS, LCP). Domestic
-feeders (LJL, PCS, VCS, ...) are excluded: their teams can't reach Worlds unless
-they're in one of these (e.g. HAWKS/DFM play LCP, not just LJL).
+Scope = the six Worlds-qualifying top leagues (LCK, LPL, LEC, LCS, LCP, CBLOL).
+Domestic feeders (LJL, PCS, VCS, ...) are excluded: their teams can't reach Worlds
+unless they're in one of these (e.g. HAWKS/DFM play LCP, not just LJL).
 
 Inputs : data/processed/2026_team_elo.parquet    (elo.py, default scope)
          data/processed/2026_team_games.parquet   (to find each team's home league)
@@ -32,7 +32,8 @@ import pandas as pd
 import paths
 from paths import CURRENT_YEAR
 from region_strength import LEAGUE_TO_REGION, INTL_LEAGUES
-TOP_LEAGUE_REGION = {"LCK": "KR", "LPL": "CN", "LEC": "EU", "LCS": "NA", "LCP": "APAC"}
+TOP_LEAGUE_REGION = {"LCK": "KR", "LPL": "CN", "LEC": "EU", "LCS": "NA", "LCP": "APAC",
+                     "CBLOL": "BR"}
 
 # Multiplier applied to calibrated rating gaps when converting to a win
 # probability.
@@ -82,7 +83,7 @@ def lcp_team_regions(teams: list[str], year: int = CURRENT_YEAR) -> dict[str, st
 
 def home_league(tg: pd.DataFrame, region_elo: pd.Series,
                 year: int = CURRENT_YEAR) -> pd.DataFrame:
-    """Each team's home top-league = modal league among the 5 qualifiers.
+    """Each team's home top-league = modal league among the top leagues.
     LCP teams are re-anchored to their real constituent region (PCS/VN/JP/OCE).
 
     `tg` must be the UNSCOPED team-games table. The check below compares a

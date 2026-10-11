@@ -101,6 +101,11 @@ internally. Its international half is derived from
 `region_strength.INTL_LEAGUES` — do not maintain a second copy; MSI and Worlds
 were once missing from a hand-written list and were silently dropped.
 
+Only the six Worlds leagues in `calibrate.TOP_LEAGUE_REGION` (LCK, LPL, LEC, LCS,
+LCP, CBLOL) get a calibrated rating and appear in the ranking; `elo.MAJOR_LEAGUES`
+is the wider pool that links them onto one Elo scale. Add a league to the former
+only if its teams can reach Worlds directly.
+
 Raw Elo still carries its league's arbitrary drift, so `calibrate.py` splits each
 team into `within_league` (offset from its league mean) and recombines it with an
 independently computed `region_elo`:
