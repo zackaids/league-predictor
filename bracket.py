@@ -237,8 +237,8 @@ def build_field(cfg: dict, year: int = CURRENT_YEAR) -> pd.DataFrame:
     for t in cfg["teams"]:
         data_name = t.get("data_name", t["name"])
         rating, league = team_rating(data_name, cal)
-        rows.append({"team": t["name"], "data_name": data_name, "seed": t["seed"],
-                     "home_league": league, "rating": rating})
+        rows.append({"team": t["name"], "short": t["short"], "data_name": data_name,
+                     "seed": t["seed"], "home_league": league, "rating": rating})
     return pd.DataFrame(rows)
 
 

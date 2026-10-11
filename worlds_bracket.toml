@@ -8,12 +8,12 @@ end = 2026-10-18
 location = "Los Angeles"
 
 # name = shown in the app.
-# data_name = the team's name in Oracle's Elixir, when it differs.
+# short = tricode. data_name = the team's name in Oracle's Elixir, when it differs.
 teams = [
-  { name = "FURIA",        seed = "CBLOL #2" },
-  { name = "MVK Esports",  seed = "LCP #3" },
-  { name = "Cloud9 Kia",   seed = "LCS #3", data_name = "Cloud9" },
-  { name = "Karmine Corp", seed = "LEC #3" },
+  { name = "FURIA",        short = "FUR", seed = "CBLOL #2" },
+  { name = "MVK Esports",  short = "MVK", seed = "LCP #3" },
+  { name = "Cloud9 Kia",   short = "C9",  seed = "LCS #3", data_name = "Cloud9" },
+  { name = "Karmine Corp", short = "KC",  seed = "LEC #3" },
 ]
 
 # The two opening series. Everything after them is determined by the results.

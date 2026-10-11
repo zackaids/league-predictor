@@ -1,0 +1,51 @@
+# Worlds 2026 Swiss stage + knockout. Facts, not assumptions (unlike
+# worlds_field.toml), but hand-entered: check them against an official source
+# (lolesports.com/news/worlds-2026-primer) when editing.
+#
+# Format: 16 teams, 5 rounds. 3 wins advance, 3 losses are out. A match is Bo3
+# (Fearless) when it can advance or eliminate -- the record has 2 wins or 2
+# losses -- and Bo1 otherwise. The 16th team is the Play-In winner (tier 4).
+start = 2026-10-23
+end = 2026-10-31
+knockout_start = 2026-11-03
+knockout_end = 2026-11-14
+location = "Allen, Texas"
+
+# name = shown in the app. short = tricode. tier = Round 1 draw tier (1-4).
+# data_name = the team's name in Oracle's Elixir, when it differs.
+# The Play-In winner takes the fourth tier-4 slot (worlds_bracket.toml).
+teams = [
+  { name = "Gen.G",               short = "GEN",  tier = 1 },
+  { name = "Anyone's Legend",     short = "AL",   tier = 1 },
+  { name = "Team Liquid",         short = "TL",   tier = 1 },
+  { name = "G2 Esports",          short = "G2",   tier = 1 },
+  { name = "LØS",                 short = "LOS",  tier = 2 },
+  { name = "Team Secret Whales",  short = "TSW",  tier = 2 },
+  { name = "Hanwha Life Esports", short = "HLE",  tier = 2 },
+  { name = "Bilibili Gaming",     short = "BLG",  tier = 2 },
+  { name = "LYON",                short = "LYON", tier = 3 },
+  { name = "Movistar KOI",        short = "MKOI", tier = 3 },
+  { name = "T1",                  short = "T1",   tier = 3 },
+  { name = "Top Esports",         short = "TES",  tier = 3 },
+  { name = "CTBC Flying Oyster",  short = "CFO",  tier = 4 },
+  { name = "Invictus Gaming",     short = "IG",   tier = 4 },
+  { name = "Dplus Kia",           short = "DK",   tier = 4 },
+]
+
+# Each round's draw, entered after Riot announces it (Oct 18, 23, 24, 26, 30).
+# Keyed by the record going in. Leave a round out until it is drawn.
+#   [draws.1]
+#   "0-0" = [["Gen.G", "Dplus Kia"], ...]
+[draws]
+
+# Quarterfinal draw (Oct 31), in bracket order: QF1 and QF2 feed SF1, QF3 and
+# QF4 feed SF2.
+#   quarterfinals = [["A", "B"], ["C", "D"], ["E", "F"], ["G", "H"]]
+[knockout]
+
+# Optional manual results, overriding what is read from Oracle's Elixir
+# (league code WLDs, inside the stage's dates). Use when OE lags.
+#   [results.swiss]   "Gen.G v Dplus Kia" = { winner = "Gen.G", score = "1-0" }
+#   [results.knockout]   QF1 = { winner = "Gen.G", score = "3-1" }
+[results.swiss]
+[results.knockout]
