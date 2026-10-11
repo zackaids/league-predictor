@@ -23,7 +23,7 @@ from __future__ import annotations
 import argparse
 import tomllib
 from collections import Counter
-from dataclasses import dataclass, field as dc_field
+from dataclasses import dataclass, field as dc_field, replace
 
 import pandas as pd
 
@@ -207,11 +207,17 @@ def _won(team: str, r: int, labels: dict, qf_teams: set | None) -> bool | None:
     return None
 
 
-def resolve(cfg: dict, series: pd.DataFrame, year: int = CURRENT_YEAR) -> Event:
-    """Everything that has really happened, from the series log plus the config."""
+def resolve(cfg: dict, series: pd.DataFrame, year: int = CURRENT_YEAR,
+            rows: pd.DataFrame | None = None) -> Event:
+    """Everything that has really happened, from the series log plus the config.
+
+    `rows` is {year}_swiss_field.csv. The app passes it so the page renders from
+    committed output, as the Play-In page always did, rather than from live
+    ratings; the pipeline builds it fresh.
+    """
     bcfg = bracket.load_config()
-    cal = pd.read_parquet(paths.processed(year, "calibrated_ratings"))
-    rows = field_rows(cfg, bcfg, cal)
+    if rows is None:
+        rows = field_rows(cfg, bcfg, pd.read_parquet(paths.processed(year, "calibrated_ratings")))
     rating = dict(zip(rows["team"], rows["rating"]))
     notes: list[str] = []
 
@@ -354,6 +360,49 @@ def resolve(cfg: dict, series: pd.DataFrame, year: int = CURRENT_YEAR) -> Event:
             notes.append(f"{r_.date:%b %d}: {a} v {b} ({r_.wins_a}-{r_.wins_b}) matches no drawn pair -- "
                          f"add that round's draw to {CONFIG.name}.")
     return Event(cfg=cfg, bcfg=bcfg, rows=rows, field=field, known=known, info=info, notes=notes)
+
+
+# ------------------------------------------------------------------ what-ifs
+
+def new_whatif() -> dict:
+    """An empty set of what-if picks. Plain data, so it lives in session state."""
+    return {"playin": {}}
+
+
+@dataclass
+class State:
+    """Facts plus what-if picks, resolved into what the odds are computed from."""
+    field: mc.Field
+    known: mc.Known
+    whatif: dict            # the picks that still apply (stale ones are dropped)
+    pairs: dict             # Play-In series -> (a, b) or None
+    solved: dict            # bracket.solve output for the Play-In
+    notes: list[str] = dc_field(default_factory=list)
+
+
+def state(event: Event, whatif: dict | None = None) -> State:
+    """Layer what-if picks over the real facts.
+
+    A real result always beats a pick, and a pick whose premise has changed (an
+    earlier series went the other way, or the stage is decided) is dropped rather
+    than trusted.
+    """
+    wi = new_whatif()
+    picks = dict((whatif or {}).get("playin", {}))
+    real_win = {m: r["winner"] for m, r in event.info["playin"].items()}
+    opening = event.bcfg["opening"]
+    if event.known.playin_winner is not None:
+        picks = {}                                   # the Play-In is over
+    pairs, fixed = bracket.determined(opening, {**picks, **real_win})
+    wi["playin"] = {m: w for m, w in picks.items() if m not in real_win and fixed.get(m) == w}
+
+    rating = dict(zip(event.rows["team"], event.rows["rating"]))
+    solved = bracket.solve(opening, rating, fixed)
+    winner = event.known.playin_winner or fixed.get("QF")
+    field = field_from_rows(event.rows, playin_probs(event.bcfg, rating, fixed, winner))
+    known = replace(event.known, playin_winner=winner)
+    return State(field=field, known=known, whatif=wi, pairs=pairs, solved=solved,
+                 notes=list(event.notes))
 
 
 # ------------------------------------------------------------------ outputs

@@ -40,9 +40,12 @@ export default function (component) {
 
   const rowInner = (r) => {
     const dot = h('span', 'dot');
-    const short = h('span', 'short', r.short || r.team);
+    // Tricode over league code in one cell that never truncates: the league is
+    // the text that makes the marker color safe to rely on.
+    const short = h('span', 'id');
+    short.appendChild(h('b', null, r.short || r.team));
+    short.appendChild(h('i', null, r.league || ''));
     const name = h('span', 'name', r.team);
-    name.appendChild(h('i', null, r.league || ''));
     const mark = r.state === 'won' ? '✓ ' : r.state === 'picked' ? '→ ' : '';
     const odds = h('span', 'odds', mark + (r.score ? r.score : pct(r.p)));
     return [dot, short, name, odds];
