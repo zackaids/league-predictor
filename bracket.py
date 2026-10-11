@@ -159,6 +159,22 @@ def solve(opening: dict, rating: dict[str, float],
 
 # ------------------------------------------------------------------ results
 
+def find_series(pool: pd.DataFrame, used: set, display: dict[str, str],
+                pair: tuple[str, str], need: int = NEED):
+    """Earliest finished, still-unused series between `pair`, or None.
+
+    `pool` is date-sorted; `display` maps Oracle's Elixir names to the names in
+    `pair`; a series is finished once a team has `need` wins, so a Bo3 sitting
+    at 1-0 is not.
+    """
+    for r in pool.itertuples(index=False):
+        if r.series_id in used or max(r.wins_a, r.wins_b) < need:
+            continue
+        if {display.get(r.team_a), display.get(r.team_b)} == set(pair):
+            return r
+    return None
+
+
 def resolve_results(cfg: dict, series: pd.DataFrame) -> dict[str, dict]:
     """Decided series -> {winner, score, source, series_id}.
 
@@ -190,14 +206,7 @@ def resolve_results(cfg: dict, series: pd.DataFrame) -> dict[str, dict]:
                                  f"decided yet -- fill in the earlier series first")
             continue
 
-        # Earliest finished, still-unused series between this pair.
-        found = None
-        for r in pool.itertuples(index=False):
-            if r.series_id in used or max(r.wins_a, r.wins_b) < NEED:
-                continue
-            if {display.get(r.team_a), display.get(r.team_b)} == set(pair):
-                found = r
-                break
+        found = find_series(pool, used, display, pair)
         if found is not None:
             used.add(found.series_id)   # consumed even when overridden below
 
