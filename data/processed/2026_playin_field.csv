@@ -1,5 +1,5 @@
-team,data_name,seed,home_league,rating,rating_source
-FURIA,FURIA,CBLOL #2,CBLOL,1549.1,CBLOL fallback
-MVK Esports,MVK Esports,LCP #3,LCP,1470.9,calibrated
-Cloud9 Kia,Cloud9,LCS #3,LCS,1576.4,calibrated
-Karmine Corp,Karmine Corp,LEC #3,LEC,1708.0,calibrated
+team,data_name,seed,home_league,rating
+FURIA,FURIA,CBLOL #2,CBLOL,1549.1
+MVK Esports,MVK Esports,LCP #3,LCP,1470.9
+Cloud9 Kia,Cloud9,LCS #3,LCS,1576.4
+Karmine Corp,Karmine Corp,LEC #3,LEC,1708.0
