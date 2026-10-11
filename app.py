@@ -16,6 +16,7 @@ import datetime as dt
 import json
 
 import altair as alt
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -429,7 +430,7 @@ def page_history() -> None:
 # ------------------------------------------------------------------ Worlds
 
 N_SIMS, SEED = 20000, 0     # what the pipeline uses, so the no-what-if odds match the committed ones
-STAGE_LABELS = ["Play-In", "Title odds"]
+STAGE_LABELS = ["Play-In", "Swiss", "Knockout", "Title odds"]
 TITLE_METRICS = {"Title": "title_%", "Final": "finals_%", "Semifinals": "semis_%",
                  "Advance from Swiss": "knockout_%"}
 
@@ -459,13 +460,15 @@ def run_odds(key: str, _field, _known):
     return mc.simulate(_field, _known, N_SIMS, SEED)
 
 
-def odds_for(field, known) -> pd.DataFrame:
+def odds_for(field, known):
+    """(title-odds table, full simulation result) for a field and what is known."""
     key = repr((field.teams, [round(float(x), 1) for x in field.rating],
                 sorted(field.playin.items()), known.playin_winner,
                 sorted(known.draws.items()),
                 sorted((r, sorted(d.items())) for r, d in known.results.items()),
                 known.qf, sorted(known.ko.items())))
-    return mc.odds_table(field, run_odds(key, field, known), "confirmed")
+    odds = run_odds(key, field, known)
+    return mc.odds_table(field, odds, "confirmed"), odds
 
 
 def worlds_whatif() -> dict:
@@ -482,21 +485,35 @@ def title_strip(table: pd.DataFrame, active: bool) -> None:
     st.caption(f"Title odds{' with your what-ifs' if active else ''}: {top}")
 
 
-def worlds_playin(event, stt) -> None:
-    rows = event.rows
-    rating = dict(zip(rows["team"], rows["rating"]))
-    data_name = dict(zip(rows["team"], rows["data_name"]))
-    teams = worlds_view.Teams.from_rows(rows, set(load_ratings()["team"]))
+def worlds_callbacks(event, stt):
+    """Widget callbacks for the board. They run before the rerun, so they may edit
+    session state; `stt` is the state the click was made against."""
+    data_name = dict(zip(event.rows["team"], event.rows["data_name"]))
 
     def on_pick(p: dict) -> None:
-        picks = worlds_whatif()["playin"]
-        if picks.get(p["match"]) == p["team"]:
-            del picks[p["match"]]        # clicking the picked team again clears it
-        else:
-            picks[p["match"]] = p["team"]
+        swiss.toggle_pick(worlds_whatif(), p["match"], p["team"])
+
+    def on_action(p: dict) -> None:
+        kind = p["id"].split(":")[1]
+        rng = np.random.default_rng()
+        try:
+            if kind == "qf":
+                swiss.draw_quarterfinals(stt, worlds_whatif(), rng)
+            else:
+                swiss.draw_round(stt, worlds_whatif(), int(kind), rng)
+        except ValueError as exc:
+            st.toast(str(exc))
 
     def on_team(p: dict) -> None:
         open_team(data_name[p["name"]])
+
+    return {"on_pick": on_pick, "on_action": on_action, "on_team": on_team}
+
+
+def worlds_playin(event, stt, cbs) -> None:
+    rows = event.rows
+    rating = dict(zip(rows["team"], rows["rating"]))
+    teams = worlds_view.Teams.from_rows(rows, set(load_ratings()["team"]))
 
     cfg = event.bcfg
     st.caption(f"{cfg['start']:%b %d}\u2013{cfg['end']:%d} \u00b7 {cfg['location']} \u00b7 "
@@ -504,7 +521,7 @@ def worlds_playin(event, stt) -> None:
                "the winner advances to the Swiss stage.")
     board.render(worlds_view.playin_board(teams, stt.pairs, event.info["playin"], stt.solved,
                                           rating, stt.whatif["playin"]),
-                 "worlds_playin", on_pick=on_pick, on_team=on_team)
+                 "worlds_playin", **cbs)
 
     st.subheader("Path to Swiss")
     table = []
@@ -523,6 +540,38 @@ def worlds_playin(event, stt) -> None:
     })
     st.caption("Ratings are the cross-region calibrated Elo from the power ranking. "
                "The model ignores the upper-bracket side-selection advantage.")
+
+
+def worlds_swiss(event, stt, odds, table, cbs) -> None:
+    teams = worlds_view.Teams.from_rows(event.rows, set(load_ratings()["team"]))
+    cfg = event.cfg
+    st.caption(f"{cfg['start']:%b %d}\u2013{cfg['end']:%d} \u00b7 {cfg['location']} \u00b7 16 teams, five rounds, "
+               "three wins advance and three losses are out. Bo3 when a team can advance or be "
+               "eliminated, Bo1 otherwise.")
+    st.caption("Round 1: tier 1 v tier 4 and tier 2 v tier 3, never two teams from the same league. "
+               "Rounds 2\u20135: random draw among teams on the same record, no rematches.")
+    board.render(worlds_view.swiss_board(teams, event, stt, odds), "worlds_swiss", **cbs)
+
+    st.subheader("Swiss odds")
+    show = table[["team", "home_league", "calibrated", "swiss_%", "knockout_%",
+                  "3-0_%", "3-1_%", "3-2_%", "2-3_%", "1-3_%", "0-3_%", "title_%"]].sort_values(
+        "knockout_%", ascending=False)
+    pct = st.column_config.NumberColumn(format="%.1f")
+    st.dataframe(show, width="stretch", hide_index=True, column_config={
+        "calibrated": st.column_config.NumberColumn(format="%.1f"),
+        "knockout_%": st.column_config.ProgressColumn("advance_%", format="%.1f%%", min_value=0, max_value=100),
+        "swiss_%": pct, "3-0_%": pct, "3-1_%": pct, "3-2_%": pct, "2-3_%": pct, "1-3_%": pct,
+        "0-3_%": pct, "title_%": pct})
+
+
+def worlds_knockout(event, stt, odds, cbs) -> None:
+    teams = worlds_view.Teams.from_rows(event.rows, set(load_ratings()["team"]))
+    cfg = event.cfg
+    st.caption(f"{cfg['knockout_start']:%b %d}\u2013{cfg['knockout_end']:%d} \u00b7 Bo5. The quarterfinal "
+               "draw pairs each 3-0 team with a 3-2 team and the other four teams with each other.")
+    st.caption("Assumption: the two 3-0 teams sit on opposite halves of the bracket, as in 2025 "
+               "(the 2026 primer does not say). A real draw in the config replaces it.")
+    board.render(worlds_view.knockout_board(teams, event, stt, odds), "worlds_knockout", **cbs)
 
 
 def worlds_title(table: pd.DataFrame, base: pd.DataFrame, active: bool) -> None:
@@ -552,6 +601,11 @@ def worlds_title(table: pd.DataFrame, base: pd.DataFrame, active: bool) -> None:
                "are below 100. Odds are simulated, so each is good to about \u00b10.3 points.")
 
 
+def play_out_rest(event) -> None:
+    """Callback: fill every open decision once, weighted by the model."""
+    st.session_state["worlds_whatif"] = swiss.play_out(event, worlds_whatif(), np.random.default_rng())
+
+
 def page_worlds() -> None:
     st.header(f"Worlds {YEAR}")
     if not swiss.is_current(YEAR):
@@ -563,29 +617,37 @@ def page_worlds() -> None:
 
     stt = swiss.state(event, worlds_whatif())
     st.session_state["worlds_whatif"] = stt.whatif       # stale picks are dropped
-    n_picks = len(stt.whatif["playin"])
-    active = n_picks > 0
+    wi = stt.whatif
+    n_whatifs = sum(len(wi[k]) for k in ("playin", "draws", "picks", "ko")) + bool(wi["qf"])
+    active = n_whatifs > 0
 
-    default = "Play-In" if event.known.playin_winner is None else "Title odds"
+    default = worlds_view.live_stage(event.known)
     st.session_state.setdefault("worlds_stage", default)
     stage = st.segmented_control("Stage", STAGE_LABELS, key="worlds_stage", label_visibility="collapsed") or default
 
-    c1, c2 = st.columns([4, 1], vertical_alignment="center")
-    c1.caption(f"What-if: {n_picks} pick(s) applied to the odds." if active else
-               "Click a team on any open series to play out a scenario. "
+    c1, c2, c3 = st.columns([5, 2, 2], vertical_alignment="center")
+    c1.caption(f"What-if: {n_whatifs} pick(s) and draw(s) applied to the odds." if active else
+               "Click a team on any open series to play out a scenario, or draw the next round yourself. "
                "Picks are yours alone and are not saved.")
-    c2.button("Reset picks", on_click=reset_whatif, disabled=not active, width="stretch")
+    c2.button("Play out the rest", on_click=play_out_rest, args=(event,), width="stretch",
+              help="Fill every open series and draw once, weighted by the model.")
+    c3.button("Reset", on_click=reset_whatif, disabled=not active, width="stretch")
     for note in stt.notes:
         st.caption(f"\u26a0\ufe0f {note}")
 
-    table = odds_for(stt.field, stt.known)
+    table, odds = odds_for(stt.field, stt.known)
     if active:
         real = swiss.state(event)
-        base = odds_for(real.field, real.known)
+        base, _ = odds_for(real.field, real.known)
     else:
         base = table
+    cbs = worlds_callbacks(event, stt)
     if stage == "Play-In":
-        worlds_playin(event, stt)
+        worlds_playin(event, stt, cbs)
+    elif stage == "Swiss":
+        worlds_swiss(event, stt, odds, table, cbs)
+    elif stage == "Knockout":
+        worlds_knockout(event, stt, odds, cbs)
     else:
         worlds_title(table, base, active)
     title_strip(table, active)

@@ -25,6 +25,7 @@ import tomllib
 from collections import Counter
 from dataclasses import dataclass, field as dc_field, replace
 
+import numpy as np
 import pandas as pd
 
 import bracket
@@ -363,10 +364,38 @@ def resolve(cfg: dict, series: pd.DataFrame, year: int = CURRENT_YEAR,
 
 
 # ------------------------------------------------------------------ what-ifs
+#
+# A what-if is plain data, so it can live in session state:
+#   playin  {series: winner}                     Play-In picks
+#   draws   {round: {"pairs", "premise"}}        hypothetical Swiss draws
+#   picks   {"r:A v B": winner}                  Swiss picks
+#   qf      {"pairs", "premise"} | None          hypothetical quarterfinal draw
+#   ko      {series: winner}                     knockout picks
+# A hypothetical draw records its `premise` -- who it was made from -- so a
+# change upstream is detected rather than silently reused.
 
 def new_whatif() -> dict:
-    """An empty set of what-if picks. Plain data, so it lives in session state."""
-    return {"playin": {}}
+    return {"playin": {}, "draws": {}, "picks": {}, "qf": None, "ko": {}}
+
+
+def pick_key(r: int, a: str, b: str) -> str:
+    return f"{r}:{a} v {b}"
+
+
+def toggle_pick(wi: dict, match_id: str, team: str) -> None:
+    """Pick `team` in the series with this board id, or clear it if already picked."""
+    if match_id in bracket.ORDER:
+        d, key = wi["playin"], match_id
+    elif match_id in mc.KO_SERIES:
+        d, key = wi["ko"], match_id
+    elif match_id.startswith("S"):
+        d, key = wi["picks"], match_id[1:]
+    else:
+        raise ValueError(f"unknown series {match_id!r}")
+    if d.get(key) == team:
+        del d[key]
+    else:
+        d[key] = team
 
 
 @dataclass
@@ -377,32 +406,187 @@ class State:
     whatif: dict            # the picks that still apply (stale ones are dropped)
     pairs: dict             # Play-In series -> (a, b) or None
     solved: dict            # bracket.solve output for the Play-In
+    hypo_draws: set = dc_field(default_factory=set)   # rounds whose draw is hypothetical
+    hypo_qf: bool = False
     notes: list[str] = dc_field(default_factory=list)
+
+
+def _decided(known: mc.Known, r: int) -> bool:
+    return r in known.draws and len(known.results.get(r, {})) == len(known.draws[r])
+
+
+def records(known: mc.Known, upto: int = mc.ROUNDS) -> dict[str, tuple[int, int]]:
+    """(wins, losses) of every team that has played, from the decided results."""
+    rec: dict[str, list[int]] = {}
+    for r in range(1, upto + 1):
+        for (a, b), w in known.results.get(r, {}).items():
+            lo = b if w == a else a
+            rec.setdefault(w, [0, 0])[0] += 1
+            rec.setdefault(lo, [0, 0])[1] += 1
+    return {t: (w, l) for t, (w, l) in rec.items()}
+
+
+def _premise(known: mc.Known, r: int, winner: str | None) -> list | None:
+    """What round `r`'s draw is made from; None while that is not decided."""
+    if r == 1:
+        return [winner] if winner else None
+    return sorted(known.results[r - 1].values()) if _decided(known, r - 1) else None
+
+
+def _qf_premise(known: mc.Known) -> list | None:
+    if not _decided(known, mc.ROUNDS):
+        return None
+    return sorted((t, l) for t, (w, l) in records(known).items() if w == 3)
+
+
+KO_FEEDS = {"SF1": ("QF1", "QF2"), "SF2": ("QF3", "QF4"), "F": ("SF1", "SF2")}
+
+
+def ko_pair(key: str, qf: list, won: dict[str, str]) -> tuple[str, str] | None:
+    if key.startswith("QF"):
+        return tuple(qf[int(key[2]) - 1])
+    a, b = (won.get(k) for k in KO_FEEDS[key])
+    return (a, b) if a and b else None
 
 
 def state(event: Event, whatif: dict | None = None) -> State:
     """Layer what-if picks over the real facts.
 
-    A real result always beats a pick, and a pick whose premise has changed (an
-    earlier series went the other way, or the stage is decided) is dropped rather
-    than trusted.
+    A real result or draw always beats a pick. A pick or hypothetical draw whose
+    premise has changed (an earlier series went the other way, the Play-In winner
+    changed, the stage is decided) is dropped rather than trusted, along with
+    everything that was built on it.
     """
+    wi_in = {**new_whatif(), **(whatif or {})}
     wi = new_whatif()
-    picks = dict((whatif or {}).get("playin", {}))
+
+    # ---- Play-In
+    picks = dict(wi_in["playin"])
     real_win = {m: r["winner"] for m, r in event.info["playin"].items()}
     opening = event.bcfg["opening"]
     if event.known.playin_winner is not None:
         picks = {}                                   # the Play-In is over
     pairs, fixed = bracket.determined(opening, {**picks, **real_win})
     wi["playin"] = {m: w for m, w in picks.items() if m not in real_win and fixed.get(m) == w}
-
     rating = dict(zip(event.rows["team"], event.rows["rating"]))
     solved = bracket.solve(opening, rating, fixed)
     winner = event.known.playin_winner or fixed.get("QF")
     field = field_from_rows(event.rows, playin_probs(event.bcfg, rating, fixed, winner))
-    known = replace(event.known, playin_winner=winner)
+
+    known = replace(event.known, playin_winner=winner,
+                    draws={r: list(p) for r, p in event.known.draws.items()},
+                    results={r: dict(d) for r, d in event.known.results.items()},
+                    ko=dict(event.known.ko))
+
+    # ---- Swiss: a hypothetical draw needs everything before it decided
+    hypo: set[int] = set()
+    for r in range(1, mc.ROUNDS + 1):
+        if r not in event.known.draws:
+            entry = wi_in["draws"].get(r)
+            if not entry or entry["premise"] != _premise(known, r, winner):
+                break
+            known.draws[r] = [tuple(p) for p in entry["pairs"]]
+            known.results.setdefault(r, {})
+            wi["draws"][r] = {"pairs": [list(p) for p in entry["pairs"]], "premise": list(entry["premise"])}
+            hypo.add(r)
+        for pair in known.draws[r]:
+            if pair not in known.results[r]:
+                w = wi_in["picks"].get(pick_key(r, *pair))
+                if w in pair:
+                    known.results[r][pair] = w
+                    wi["picks"][pick_key(r, *pair)] = w
+        if not _decided(known, r):
+            break
+
+    # ---- quarterfinal draw
+    hypo_qf = False
+    entry = wi_in["qf"]
+    if known.qf is None and entry and entry["premise"] == _qf_premise(known):
+        known.qf = [tuple(p) for p in entry["pairs"]]
+        wi["qf"] = {"pairs": [list(p) for p in entry["pairs"]], "premise": list(entry["premise"])}
+        hypo_qf = True
+
+    # ---- knockout picks
+    if known.qf is not None:
+        won = dict(known.ko)
+        for key in mc.KO_SERIES:
+            pair = ko_pair(key, known.qf, won)
+            if pair is None or key in known.ko:
+                continue
+            w = wi_in["ko"].get(key)
+            if w in pair:
+                known.ko[key] = won[key] = wi["ko"][key] = w
     return State(field=field, known=known, whatif=wi, pairs=pairs, solved=solved,
-                 notes=list(event.notes))
+                 hypo_draws=hypo, hypo_qf=hypo_qf, notes=list(event.notes))
+
+
+def _known_before(known: mc.Known, r: int) -> mc.Known:
+    """`known` with round `r` and everything after it forgotten."""
+    return mc.Known(playin_winner=known.playin_winner,
+                    draws={k: v for k, v in known.draws.items() if k < r},
+                    results={k: v for k, v in known.results.items() if k < r})
+
+
+def draw_round(stt: State, wi: dict, r: int, rng: np.random.Generator) -> None:
+    """Make a hypothetical, legal draw for Swiss round `r` (a redraw, if it exists)."""
+    before = _known_before(stt.known, r)
+    premise = _premise(before, r, before.playin_winner)
+    if premise is None:
+        raise ValueError(f"round {r} cannot be drawn until the round before it is decided")
+    pairs = mc.sample_round(stt.field, before, rng)
+    wi["draws"][r] = {"pairs": [list(p) for p in pairs], "premise": premise}
+
+
+def draw_quarterfinals(stt: State, wi: dict, rng: np.random.Generator) -> None:
+    before = replace(stt.known, qf=None, ko={})
+    premise = _qf_premise(before)
+    if premise is None:
+        raise ValueError("the quarterfinals cannot be drawn until the Swiss stage is decided")
+    wi["qf"] = {"pairs": [list(p) for p in mc.sample_quarterfinals(stt.field, before, rng)],
+                "premise": premise}
+
+
+def play_out(event: Event, whatif: dict | None, rng: np.random.Generator) -> dict:
+    """Fill every open decision once, weighted by the model: Play-In series, draws,
+    Swiss results, the quarterfinal draw and the knockout. Real facts stay as they
+    are, and so do the picks already made."""
+    wi = {**new_whatif(), **(whatif or {})}
+    wi = {"playin": dict(wi["playin"]), "draws": dict(wi["draws"]), "picks": dict(wi["picks"]),
+          "qf": wi["qf"], "ko": dict(wi["ko"])}
+
+    if event.known.playin_winner is None:
+        rating = dict(zip(event.rows["team"], event.rows["rating"]))
+        real_win = {m: r["winner"] for m, r in event.info["playin"].items()}
+        opening = event.bcfg["opening"]
+        for m in bracket.ORDER:
+            pairs, fixed = bracket.determined(opening, {**wi["playin"], **real_win})
+            if m in fixed:
+                continue
+            a, b = pairs[m]
+            wi["playin"][m] = a if rng.random() < bracket.p_match(rating[a], rating[b]) else b
+
+    stt = state(event, wi)
+    tr = mc.run_trace(stt.field, stt.known, int(rng.integers(2**31 - 1)))
+    for r in range(1, mc.ROUNDS + 1):
+        if r not in stt.known.draws:
+            wi["draws"][r] = {"pairs": [list(p) for p in tr.draws[r]],
+                              "premise": [tr.playin_winner] if r == 1 else sorted(tr.winners[r - 1])}
+        for pair, w in zip(tr.draws[r], tr.winners[r]):
+            if pair not in stt.known.results.get(r, {}):
+                wi["picks"][pick_key(r, *pair)] = w
+    if stt.known.qf is None:
+        rec: dict[str, list[int]] = {}
+        for r in range(1, mc.ROUNDS + 1):
+            for (a, b), w in zip(tr.draws[r], tr.winners[r]):
+                lo = b if w == a else a
+                rec.setdefault(w, [0, 0])[0] += 1
+                rec.setdefault(lo, [0, 0])[1] += 1
+        wi["qf"] = {"pairs": [list(p) for p in tr.qf],
+                    "premise": sorted((t, l) for t, (w, l) in rec.items() if w == 3)}
+    for key, w in tr.ko.items():
+        if key not in stt.known.ko:
+            wi["ko"][key] = w
+    return wi
 
 
 # ------------------------------------------------------------------ outputs
