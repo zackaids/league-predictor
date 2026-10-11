@@ -79,8 +79,14 @@ def ranked(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def record(year: int = CURRENT_YEAR, snapshot_date: str | None = None) -> pd.DataFrame:
-    """Append today's snapshot from the current processed outputs."""
+def record(year: int = CURRENT_YEAR, snapshot_date: str | None = None,
+           odds: bool = True) -> pd.DataFrame:
+    """Append today's snapshot from the current processed outputs.
+
+    `odds=False` leaves the title-odds history alone, for a run whose odds stage
+    failed: the file on disk is then the previous run's, and stamping it with
+    today's date would present stale odds as fresh.
+    """
     ratings = pd.read_parquet(paths.processed(year, "calibrated_ratings"))
     tg = pd.read_parquet(paths.processed(year, "team_games"))
 
@@ -93,7 +99,7 @@ def record(year: int = CURRENT_YEAR, snapshot_date: str | None = None) -> pd.Dat
                   keys=["snapshot_date", "team"])
 
     odds_path = paths.processed(year, "worlds_title_odds", "csv")
-    if odds_path.exists():
+    if odds and odds_path.exists():
         _append(ODDS, _stamp(pd.read_csv(odds_path), snapshot, as_of),
                 keys=["snapshot_date", "team"])
     return out
