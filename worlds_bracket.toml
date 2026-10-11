@@ -1,0 +1,30 @@
+# Worlds 2026 Play-In. 4 teams, double elimination, every series Bo5; exactly one
+# team advances to the 16-team Swiss stage. Draw made 2026-10-10.
+#
+# These are facts, not assumptions (unlike worlds_field.toml), but they are
+# hand-entered, so check them against an official source when editing.
+start = 2026-10-15
+end = 2026-10-18
+location = "Los Angeles"
+
+# name = shown in the app.
+# data_name = the team's name in Oracle's Elixir, when it differs.
+teams = [
+  { name = "FURIA",        seed = "CBLOL #2" },
+  { name = "MVK Esports",  seed = "LCP #3" },
+  { name = "Cloud9 Kia",   seed = "LCS #3", data_name = "Cloud9" },
+  { name = "Karmine Corp", seed = "LEC #3" },
+]
+
+# The two opening series. Everything after them is determined by the results.
+[opening]
+O1 = ["FURIA", "MVK Esports"]
+O2 = ["Cloud9 Kia", "Karmine Corp"]
+
+# Optional manual results, overriding what is auto-detected from Oracle's Elixir
+# (league code WLDs). Use when OE lags or gets a result wrong. Match ids:
+#   O1, O2 = opening  UB = upper bracket  LB = lower bracket
+#   LF = lower final  QF = qualifying match (winner -> Swiss)
+# `score` is the winner's series score and is optional.
+[results]
+# O1 = { winner = "FURIA", score = "3-1" }
