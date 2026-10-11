@@ -20,6 +20,7 @@ import pandas as pd
 import streamlit as st
 
 import backtest
+import bracket
 import elo
 import history
 import paths
@@ -421,6 +422,155 @@ def page_history() -> None:
         st.caption("Lower is better; the axis is not inverted.")
 
 
+# ------------------------------------------------------------------ Play-In bracket
+
+# (column title, series shown in it), left to right.
+BRACKET_COLUMNS = [
+    ("Opening", ["O1", "O2"]),
+    ("Upper & lower", ["UB", "LB"]),
+    ("Lower final", ["LF"]),
+    ("Qualifier", ["QF"]),
+]
+BRACKET_NAMES = {"O1": "Opening 1", "O2": "Opening 2", "UB": "Upper bracket",
+                 "LB": "Lower bracket", "LF": "Lower final", "QF": "Qualifying match"}
+BRACKET_STAKES = {
+    "O1": "loser drops to the lower bracket",
+    "O2": "loser drops to the lower bracket",
+    "UB": "winner to the qualifier, loser to the lower final",
+    "LB": "loser out (19th)",
+    "LF": "loser out (18th), winner to the qualifier",
+    "QF": "winner advances to Swiss, loser 17th",
+}
+RESULT_SOURCES = {"auto": "from Oracle's Elixir", "manual": "entered in worlds_bracket.toml"}
+
+
+@st.cache_data
+def load_playin_field(year: int = YEAR) -> pd.DataFrame:
+    path = paths.processed(year, "playin_field", "csv")
+    return pd.read_csv(path) if path.exists() else pd.DataFrame()
+
+
+def _pick_key(match: str) -> str:
+    return f"pick_{match}"
+
+
+def reset_picks() -> None:
+    """Callback, so the widget state is cleared before the rerun renders them."""
+    for m in bracket.ORDER:
+        st.session_state.pop(_pick_key(m), None)
+
+
+def bracket_row(match: str, i: int, team: str, right: str, data_name: dict,
+                clickable: set[str], bold: bool = False, mark: str = "") -> None:
+    name, value = st.columns([4, 2], vertical_alignment="center")
+    label = f"{mark}{team}"
+    if data_name.get(team) in clickable:
+        name.button(label, key=f"bk_{match}_{i}", type="tertiary",
+                    on_click=open_team, args=(data_name[team],))
+    else:
+        name.markdown(f"**{label}**" if bold else label)
+    value.markdown(f"**{right}**" if bold else right)
+
+
+def bracket_card(match: str, pairs: dict, result: dict | None, solved: dict,
+                 rating: dict, data_name: dict, clickable: set[str]) -> None:
+    with st.container(border=True):
+        st.caption(f"**{BRACKET_NAMES[match]}** · Bo5 · {BRACKET_STAKES[match]}")
+        pair = pairs[match]
+
+        if pair is None:
+            # An earlier series is undecided, so list who could end up here.
+            likely = sorted(solved["appear"][match].items(), key=lambda kv: -kv[1])
+            for i, (team, p) in enumerate(t for t in likely if t[1] > 0.0005):
+                bracket_row(match, i, team, f"{p:.0%}", data_name, clickable)
+            st.caption("Chance each team plays here")
+            return
+
+        if result:
+            win = result["winner"]
+            score = result["score"].split("-") if result["score"] else ["W", "L"]
+            for i, team in enumerate(pair):
+                won = team == win
+                bracket_row(match, i, team, score[0] if won else score[1],
+                            data_name, clickable, bold=won, mark="\u2713 " if won else "")
+            st.caption(f"Final · {RESULT_SOURCES[result['source']]}")
+            return
+
+        p_a = bracket.p_match(rating[pair[0]], rating[pair[1]])
+        picked = st.session_state.get(_pick_key(match))
+        for i, (team, p) in enumerate(zip(pair, (p_a, 1 - p_a))):
+            bracket_row(match, i, team, f"{p:.0%}", data_name, clickable,
+                        bold=team == picked, mark="\u2192 " if team == picked else "")
+        st.segmented_control("What-if winner", list(pair), key=_pick_key(match),
+                             label_visibility="collapsed")
+
+
+def page_bracket() -> None:
+    st.header(f"Worlds {YEAR} \u2014 Play-In bracket")
+    field = load_playin_field()
+    if field.empty:
+        st.info("No Play-In data yet. Run `python bracket.py`.")
+        return
+
+    cfg = bracket.load_config()  # tiny, and uncached so a TOML edit shows on the next rerun
+    opening = cfg["opening"]
+    rating = dict(zip(field["team"], field["rating"]))
+    data_name = dict(zip(field["team"], field["data_name"]))
+    clickable = set(load_ratings()["team"])
+
+    real = bracket.resolve_results(cfg, load_series())
+    real_win = {m: r["winner"] for m, r in real.items()}
+
+    # What-if picks, minus any a real result or an upstream change has made
+    # stale. Their widget keys are cleared here, before the widgets render.
+    picks = {m: st.session_state[_pick_key(m)] for m in bracket.ORDER
+             if st.session_state.get(_pick_key(m))}
+    pairs, fixed = bracket.determined(opening, {**picks, **real_win})
+    for m, winner in picks.items():
+        if m in real_win or fixed.get(m) != winner:
+            del st.session_state[_pick_key(m)]
+    solved = bracket.solve(opening, rating, fixed)
+
+    st.caption(f"{cfg['start']:%b %d}\u2013{cfg['end']:%d} \u00b7 {cfg['location']} \u00b7 "
+               "4 teams, double elimination, every series Bo5 \u00b7 "
+               "the winner advances to the Swiss stage.")
+    n_picks = sum(1 for m in fixed if m not in real_win)
+    c1, c2 = st.columns([4, 1], vertical_alignment="center")
+    c1.caption(f"What-if: {n_picks} pick(s) applied to the odds below." if n_picks
+               else "Pick a winner on any open series to play out a scenario. "
+                    "Picks are yours alone and are not saved.")
+    c2.button("Reset picks", on_click=reset_picks, disabled=not n_picks, width="stretch")
+
+    for col, (title, matches) in zip(st.columns(len(BRACKET_COLUMNS)), BRACKET_COLUMNS):
+        with col:
+            st.markdown(f"**{title}**")
+            for m in matches:
+                bracket_card(m, pairs, real.get(m), solved, rating, data_name, clickable)
+
+    st.subheader("Path to Swiss")
+    rows = []
+    for t in field.itertuples(index=False):
+        f = solved["finish"][t.team]
+        rows.append({"team": t.team, "seed": t.seed, "rating": t.rating,
+                     "Swiss": 100 * f[bracket.SWISS], "17th": 100 * f[17],
+                     "18th": 100 * f[18], "19th": 100 * f[19]})
+    table = pd.DataFrame(rows).sort_values("Swiss", ascending=False)
+    pct = st.column_config.NumberColumn(format="%.1f%%")
+    st.dataframe(table, width="stretch", hide_index=True, column_config={
+        "rating": st.column_config.NumberColumn("calibrated", format="%.1f"),
+        "Swiss": st.column_config.ProgressColumn("Advances to Swiss", format="%.1f%%",
+                                                 min_value=0, max_value=100),
+        "17th": pct, "18th": pct, "19th": pct,
+    })
+
+    fallbacks = field[field["rating_source"] != "calibrated"]
+    st.caption("Ratings are calibrated Elo. " + " ".join(
+        f"{r.team} is outside the rated pool, so its rating is its domestic league's "
+        f"region prior plus its Elo offset from that league's average ({r.rating_source})."
+        for r in fallbacks.itertuples()))
+    st.caption("The model ignores the upper-bracket side-selection advantage.")
+
+
 def page_odds() -> None:
     st.header(f"Worlds {YEAR} — projected title odds")
     odds = load_odds()
@@ -504,6 +654,7 @@ PAGES = {
     "Power ranking": page_ranking,
     "Team": page_team,
     "Rating history": page_history,
+    "Worlds bracket": page_bracket,
     "Worlds odds": page_odds,
     "Model health": page_health,
 }

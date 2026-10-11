@@ -54,6 +54,7 @@ def run(year: int = CURRENT_YEAR, *, fetch: bool = False, full: bool = False,
         n_sims: int = 20000, seed: int | None = 0, force: bool = False) -> bool:
     """Run the pipeline. Returns True if it actually did work."""
     # Imported lazily so `--help` doesn't pay for pandas.
+    import bracket
     import calibrate
     import clean
     import elo
@@ -107,6 +108,15 @@ def run(year: int = CURRENT_YEAR, *, fetch: bool = False, full: bool = False,
         calibrate.run(year)
     with stage(f"monte_carlo {year}"):
         monte_carlo.simulate_and_write(year, n_sims, seed)
+
+    if bracket.CONFIG.exists():
+        # A side feature: a team renamed upstream must not stop the ratings and
+        # history below from being committed, so report loudly and carry on.
+        try:
+            with stage(f"playin field {year}"):
+                bracket.write_field(year)
+        except Exception as exc:
+            print(f"\nPlay-In field skipped: {exc}")
 
     if full:
         # Reads every raw CSV, which only --full guarantees are present.
