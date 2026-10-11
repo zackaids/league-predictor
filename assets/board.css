@@ -1,0 +1,105 @@
+:host { display: block; }
+
+.board {
+  /* League identity colors: fixed slots 1-6 of the validated categorical palette
+     (light / dark steps). Every row also prints the league code as text, so
+     color never carries identity alone. */
+  --lg-1: #2a78d6; --lg-2: #eb6834; --lg-3: #1baf7a;
+  --lg-4: #eda100; --lg-5: #e87ba4; --lg-6: #008300;
+  --ink: var(--st-text-color, #1f2430);
+  --muted: color-mix(in srgb, var(--ink) 62%, transparent);
+  --line: var(--st-border-color, rgba(128, 128, 128, 0.35));
+  --card: var(--st-secondary-background-color, #f0f2f6);
+  --accent: var(--st-primary-color, #ff4b4b);
+  position: relative;
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+  padding: 6px 2px 12px;
+  font-family: var(--st-font, system-ui, sans-serif);
+  font-size: 14px;
+  line-height: 1.25;
+  color: var(--ink);
+}
+.board[data-mode="dark"] {
+  --lg-1: #3987e5; --lg-2: #d95926; --lg-3: #199e70;
+  --lg-4: #c98500; --lg-5: #d55181; --lg-6: #008300;
+}
+[data-lg="LCK"]   { --c: var(--lg-1); }
+[data-lg="LPL"]   { --c: var(--lg-2); }
+[data-lg="LEC"]   { --c: var(--lg-3); }
+[data-lg="LCS"]   { --c: var(--lg-4); }
+[data-lg="LCP"]   { --c: var(--lg-5); }
+[data-lg="CBLOL"] { --c: var(--lg-6); }
+
+.col { display: flex; flex-direction: column; gap: 14px; flex: 1 0 212px; min-width: 212px; position: relative; z-index: 1; }
+.colbody { display: flex; flex-direction: column; gap: 14px; flex: 1; }
+.col.center .colbody { justify-content: space-around; }
+.col > h3 {
+  margin: 0; font-size: 11px; font-weight: 600; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--muted);
+}
+.col > h3 small { font-weight: 400; letter-spacing: 0; text-transform: none; margin-left: 6px; }
+
+.box { display: flex; flex-direction: column; gap: 8px; }
+.btitle { font-size: 13px; font-weight: 600; display: flex; align-items: baseline; gap: 8px; }
+.btitle small { font-weight: 400; color: var(--muted); font-size: 12px; }
+
+.match { background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.match.decided { border-color: color-mix(in srgb, var(--ink) 35%, transparent); }
+.head { display: flex; justify-content: space-between; gap: 8px; padding: 6px 10px 3px; font-size: 11px; color: var(--muted); }
+.head b { font-weight: 600; color: var(--ink); }
+.foot { padding: 3px 10px 6px; font-size: 11px; color: var(--muted); }
+
+.rw { display: flex; align-items: stretch; position: relative; }
+.row {
+  all: unset; box-sizing: border-box; flex: 1; min-width: 0; position: relative;
+  display: grid; grid-template-columns: 8px 38px minmax(0, 1fr) auto; align-items: center; gap: 8px;
+  padding: 7px 8px 8px 10px; cursor: default;
+}
+button.row { cursor: pointer; }
+button.row:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+button.row:focus-visible, .go:focus-visible, .action:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--muted)); }
+.id { display: flex; flex-direction: column; line-height: 1.1; }
+.id b { font-weight: 650; font-size: 13px; letter-spacing: 0.02em; }
+.id i { font-style: normal; font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.odds { font-variant-numeric: tabular-nums; font-size: 13px; font-weight: 600; text-align: right; min-width: 38px; }
+.bar { position: absolute; left: 0; bottom: 0; height: 2px; width: calc(var(--p, 0) * 100%); background: var(--c, var(--muted)); border-radius: 0 2px 0 0; }
+.go {
+  all: unset; box-sizing: border-box; width: 26px; display: grid; place-items: center; cursor: pointer;
+  color: var(--muted); font-size: 12px;
+}
+.go:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
+
+.row[data-state="won"] .id b, .row[data-state="won"] .odds { font-weight: 800; }
+.row[data-state="won"] .name { color: var(--ink); }
+.row[data-state="lost"] { opacity: 0.5; }
+.row[data-state="picked"] {
+  background: color-mix(in srgb, var(--accent) 13%, transparent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.row[data-state="picked"] .id b { font-weight: 800; }
+.match + .match, .rw + .rw { border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent); }
+
+.likely { display: flex; flex-direction: column; background: var(--card); border: 1px dashed var(--line); border-radius: 10px; overflow: hidden; }
+.likely .row { padding-top: 5px; padding-bottom: 6px; }
+.likely .cap { padding: 4px 10px 6px; font-size: 11px; color: var(--muted); }
+
+.action {
+  all: unset; box-sizing: border-box; text-align: center; padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--accent); color: var(--accent); font-weight: 600; font-size: 13px; cursor: pointer;
+}
+.action:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.action[disabled] { border-color: var(--line); color: var(--muted); cursor: not-allowed; background: transparent; }
+.hint { font-size: 11px; color: var(--muted); margin-top: -4px; }
+.note { font-size: 12px; color: var(--muted); }
+
+svg.edges { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; z-index: 0; }
+svg.edges path { fill: none; stroke: color-mix(in srgb, var(--ink) 40%, transparent); stroke-width: 1.5; }
+svg.edges path.lose { stroke-dasharray: 4 4; stroke: color-mix(in srgb, var(--ink) 28%, transparent); }
+
+@media (max-width: 520px) {
+  .col { flex-basis: 240px; min-width: 240px; }
+}

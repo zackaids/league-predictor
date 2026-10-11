@@ -20,10 +20,14 @@ import pandas as pd
 import streamlit as st
 
 import backtest
+import board
 import bracket
 import elo
 import history
+import monte_carlo as mc
 import paths
+import swiss
+import worlds_view
 from paths import CURRENT_YEAR
 
 st.set_page_config(page_title="Worlds Predictor", page_icon="🏆", layout="wide")
@@ -422,139 +426,94 @@ def page_history() -> None:
         st.caption("Lower is better; the axis is not inverted.")
 
 
-# ------------------------------------------------------------------ Play-In bracket
+# ------------------------------------------------------------------ Worlds
 
-# (column title, series shown in it), left to right.
-BRACKET_COLUMNS = [
-    ("Opening", ["O1", "O2"]),
-    ("Upper & lower", ["UB", "LB"]),
-    ("Lower final", ["LF"]),
-    ("Qualifier", ["QF"]),
-]
-BRACKET_NAMES = {"O1": "Opening 1", "O2": "Opening 2", "UB": "Upper bracket",
-                 "LB": "Lower bracket", "LF": "Lower final", "QF": "Qualifying match"}
-BRACKET_STAKES = {
-    "O1": "loser drops to the lower bracket",
-    "O2": "loser drops to the lower bracket",
-    "UB": "winner to the qualifier, loser to the lower final",
-    "LB": "loser out (19th)",
-    "LF": "loser out (18th), winner to the qualifier",
-    "QF": "winner advances to Swiss, loser 17th",
-}
-RESULT_SOURCES = {"auto": "from Oracle's Elixir", "manual": "entered in worlds_bracket.toml"}
+N_SIMS, SEED = 20000, 0     # what the pipeline uses, so the no-what-if odds match the committed ones
+STAGE_LABELS = ["Play-In", "Title odds"]
+TITLE_METRICS = {"Title": "title_%", "Final": "finals_%", "Semifinals": "semis_%",
+                 "Advance from Swiss": "knockout_%"}
 
 
 @st.cache_data
-def load_playin_field(year: int = YEAR) -> pd.DataFrame:
-    path = paths.processed(year, "playin_field", "csv")
+def load_swiss_rows(year: int = YEAR) -> pd.DataFrame:
+    path = paths.processed(year, "swiss_field", "csv")
     return pd.read_csv(path) if path.exists() else pd.DataFrame()
 
 
-def _pick_key(match: str) -> str:
-    return f"pick_{match}"
+def load_event():
+    """The confirmed facts, or None when the field has not been built yet.
+
+    Resolved from the committed field CSV so an upstream team rename cannot break
+    the page between pipeline runs; the config is tiny and read uncached, so an
+    edit shows on the next rerun.
+    """
+    rows = load_swiss_rows()
+    if rows.empty:
+        return None
+    return swiss.resolve(swiss.load_config(), load_series(), YEAR, rows=rows)
 
 
-def reset_picks() -> None:
-    """Callback, so the widget state is cleared before the rerun renders them."""
-    for m in bracket.ORDER:
-        st.session_state.pop(_pick_key(m), None)
+@st.cache_data(show_spinner=False)
+def run_odds(key: str, _field, _known):
+    """Cached on `key` (the inputs, spelled out); the objects are not hashable."""
+    return mc.simulate(_field, _known, N_SIMS, SEED)
 
 
-def bracket_row(match: str, i: int, team: str, right: str, data_name: dict,
-                clickable: set[str], bold: bool = False, mark: str = "") -> None:
-    name, value = st.columns([4, 2], vertical_alignment="center")
-    label = f"{mark}{team}"
-    if data_name.get(team) in clickable:
-        name.button(label, key=f"bk_{match}_{i}", type="tertiary",
-                    on_click=open_team, args=(data_name[team],))
-    else:
-        name.markdown(f"**{label}**" if bold else label)
-    value.markdown(f"**{right}**" if bold else right)
+def odds_for(field, known) -> pd.DataFrame:
+    key = repr((field.teams, [round(float(x), 1) for x in field.rating],
+                sorted(field.playin.items()), known.playin_winner,
+                sorted(known.draws.items()),
+                sorted((r, sorted(d.items())) for r, d in known.results.items()),
+                known.qf, sorted(known.ko.items())))
+    return mc.odds_table(field, run_odds(key, field, known), "confirmed")
 
 
-def bracket_card(match: str, pairs: dict, result: dict | None, solved: dict,
-                 rating: dict, data_name: dict, clickable: set[str]) -> None:
-    with st.container(border=True):
-        st.caption(f"**{BRACKET_NAMES[match]}** · Bo5 · {BRACKET_STAKES[match]}")
-        pair = pairs[match]
-
-        if pair is None:
-            # An earlier series is undecided, so list who could end up here.
-            likely = sorted(solved["appear"][match].items(), key=lambda kv: -kv[1])
-            for i, (team, p) in enumerate(t for t in likely if t[1] > 0.0005):
-                bracket_row(match, i, team, f"{p:.0%}", data_name, clickable)
-            st.caption("Chance each team plays here")
-            return
-
-        if result:
-            win = result["winner"]
-            score = result["score"].split("-") if result["score"] else ["W", "L"]
-            for i, team in enumerate(pair):
-                won = team == win
-                bracket_row(match, i, team, score[0] if won else score[1],
-                            data_name, clickable, bold=won, mark="\u2713 " if won else "")
-            st.caption(f"Final · {RESULT_SOURCES[result['source']]}")
-            return
-
-        p_a = bracket.p_match(rating[pair[0]], rating[pair[1]])
-        picked = st.session_state.get(_pick_key(match))
-        for i, (team, p) in enumerate(zip(pair, (p_a, 1 - p_a))):
-            bracket_row(match, i, team, f"{p:.0%}", data_name, clickable,
-                        bold=team == picked, mark="\u2192 " if team == picked else "")
-        st.segmented_control("What-if winner", list(pair), key=_pick_key(match),
-                             label_visibility="collapsed")
+def worlds_whatif() -> dict:
+    return st.session_state.setdefault("worlds_whatif", swiss.new_whatif())
 
 
-def page_bracket() -> None:
-    st.header(f"Worlds {YEAR} \u2014 Play-In bracket")
-    field = load_playin_field()
-    if field.empty:
-        st.info("No Play-In data yet. Run `python bracket.py`.")
-        return
+def reset_whatif() -> None:
+    """Callback, so the picks are cleared before the rerun renders the board."""
+    st.session_state["worlds_whatif"] = swiss.new_whatif()
 
-    cfg = bracket.load_config()  # tiny, and uncached so a TOML edit shows on the next rerun
-    opening = cfg["opening"]
-    rating = dict(zip(field["team"], field["rating"]))
-    data_name = dict(zip(field["team"], field["data_name"]))
-    clickable = set(load_ratings()["team"])
 
-    real = bracket.resolve_results(cfg, load_series())
-    real_win = {m: r["winner"] for m, r in real.items()}
+def title_strip(table: pd.DataFrame, active: bool) -> None:
+    top = " \u00b7 ".join(f"**{r['team']}** {r['title_%']:.0f}%" for _, r in table.head(6).iterrows())
+    st.caption(f"Title odds{' with your what-ifs' if active else ''}: {top}")
 
-    # What-if picks, minus any a real result or an upstream change has made
-    # stale. Their widget keys are cleared here, before the widgets render.
-    picks = {m: st.session_state[_pick_key(m)] for m in bracket.ORDER
-             if st.session_state.get(_pick_key(m))}
-    pairs, fixed = bracket.determined(opening, {**picks, **real_win})
-    for m, winner in picks.items():
-        if m in real_win or fixed.get(m) != winner:
-            del st.session_state[_pick_key(m)]
-    solved = bracket.solve(opening, rating, fixed)
 
+def worlds_playin(event, stt) -> None:
+    rows = event.rows
+    rating = dict(zip(rows["team"], rows["rating"]))
+    data_name = dict(zip(rows["team"], rows["data_name"]))
+    teams = worlds_view.Teams.from_rows(rows, set(load_ratings()["team"]))
+
+    def on_pick(p: dict) -> None:
+        picks = worlds_whatif()["playin"]
+        if picks.get(p["match"]) == p["team"]:
+            del picks[p["match"]]        # clicking the picked team again clears it
+        else:
+            picks[p["match"]] = p["team"]
+
+    def on_team(p: dict) -> None:
+        open_team(data_name[p["name"]])
+
+    cfg = event.bcfg
     st.caption(f"{cfg['start']:%b %d}\u2013{cfg['end']:%d} \u00b7 {cfg['location']} \u00b7 "
                "4 teams, double elimination, every series Bo5 \u00b7 "
                "the winner advances to the Swiss stage.")
-    n_picks = sum(1 for m in fixed if m not in real_win)
-    c1, c2 = st.columns([4, 1], vertical_alignment="center")
-    c1.caption(f"What-if: {n_picks} pick(s) applied to the odds below." if n_picks
-               else "Pick a winner on any open series to play out a scenario. "
-                    "Picks are yours alone and are not saved.")
-    c2.button("Reset picks", on_click=reset_picks, disabled=not n_picks, width="stretch")
-
-    for col, (title, matches) in zip(st.columns(len(BRACKET_COLUMNS)), BRACKET_COLUMNS):
-        with col:
-            st.markdown(f"**{title}**")
-            for m in matches:
-                bracket_card(m, pairs, real.get(m), solved, rating, data_name, clickable)
+    board.render(worlds_view.playin_board(teams, stt.pairs, event.info["playin"], stt.solved,
+                                          rating, stt.whatif["playin"]),
+                 "worlds_playin", on_pick=on_pick, on_team=on_team)
 
     st.subheader("Path to Swiss")
-    rows = []
-    for t in field.itertuples(index=False):
-        f = solved["finish"][t.team]
-        rows.append({"team": t.team, "seed": t.seed, "rating": t.rating,
-                     "Swiss": 100 * f[bracket.SWISS], "17th": 100 * f[17],
-                     "18th": 100 * f[18], "19th": 100 * f[19]})
-    table = pd.DataFrame(rows).sort_values("Swiss", ascending=False)
+    table = []
+    for t in rows[rows["role"] == "playin"].itertuples(index=False):
+        f = stt.solved["finish"][t.team]
+        table.append({"team": t.team, "seed": next(x["seed"] for x in cfg["teams"] if x["name"] == t.team),
+                      "rating": t.rating, "Swiss": 100 * f[bracket.SWISS], "17th": 100 * f[17],
+                      "18th": 100 * f[18], "19th": 100 * f[19]})
+    table = pd.DataFrame(table).sort_values("Swiss", ascending=False)
     pct = st.column_config.NumberColumn(format="%.1f%%")
     st.dataframe(table, width="stretch", hide_index=True, column_config={
         "rating": st.column_config.NumberColumn("calibrated", format="%.1f"),
@@ -562,28 +521,90 @@ def page_bracket() -> None:
                                                  min_value=0, max_value=100),
         "17th": pct, "18th": pct, "19th": pct,
     })
+    st.caption("Ratings are the cross-region calibrated Elo from the power ranking. "
+               "The model ignores the upper-bracket side-selection advantage.")
 
-    st.caption("Ratings are the cross-region calibrated Elo from the power ranking.")
-    st.caption("The model ignores the upper-bracket side-selection advantage.")
+
+def worlds_title(table: pd.DataFrame, base: pd.DataFrame, active: bool) -> None:
+    label = st.segmented_control("Show", list(TITLE_METRICS), default="Title", key="worlds_metric") or "Title"
+    metric = TITLE_METRICS[label]
+    bars = alt.Chart(table).mark_bar(cornerRadiusEnd=3).encode(
+        y=alt.Y("team:N", sort="-x", title=None, axis=alt.Axis(labelLimit=220)),
+        x=alt.X(f"{metric}:Q", title=f"{label} (%)"),
+        tooltip=["team", "home_league", alt.Tooltip(f"{metric}:Q", format=".1f")],
+    )
+    labels = bars.mark_text(align="left", dx=4, fontSize=11).encode(
+        text=alt.Text(f"{metric}:Q", format=".1f"))
+    st.altair_chart((bars + labels).properties(height=26 * len(table) + 30), width="stretch")
+    show = table.drop(columns=["field"]).copy()
+    if active:
+        before = base.set_index("team")["title_%"]
+        show.insert(show.columns.get_loc("title_%") + 1, "\u0394 title",
+                    show["title_%"] - show["team"].map(before))
+    pct = st.column_config.NumberColumn(format="%.1f")
+    st.dataframe(show, width="stretch", hide_index=True, column_config={
+        "calibrated": st.column_config.NumberColumn(format="%.1f"),
+        "swiss_%": pct, "knockout_%": pct, "semis_%": pct, "finals_%": pct,
+        "title_%": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=100),
+        "\u0394 title": st.column_config.NumberColumn(format="%+.1f"),
+    })
+    st.caption("`swiss_%` is the chance of playing in the Swiss at all: only the Play-In teams "
+               "are below 100. Odds are simulated, so each is good to about \u00b10.3 points.")
 
 
-def page_odds() -> None:
-    st.header(f"Worlds {YEAR} — projected title odds")
+def page_worlds() -> None:
+    st.header(f"Worlds {YEAR}")
+    if not swiss.is_current(YEAR):
+        return projected_odds()
+    event = load_event()
+    if event is None:
+        st.info("No Worlds field yet. Run `python pipeline.py`.")
+        return
+
+    stt = swiss.state(event, worlds_whatif())
+    st.session_state["worlds_whatif"] = stt.whatif       # stale picks are dropped
+    n_picks = len(stt.whatif["playin"])
+    active = n_picks > 0
+
+    default = "Play-In" if event.known.playin_winner is None else "Title odds"
+    st.session_state.setdefault("worlds_stage", default)
+    stage = st.segmented_control("Stage", STAGE_LABELS, key="worlds_stage", label_visibility="collapsed") or default
+
+    c1, c2 = st.columns([4, 1], vertical_alignment="center")
+    c1.caption(f"What-if: {n_picks} pick(s) applied to the odds." if active else
+               "Click a team on any open series to play out a scenario. "
+               "Picks are yours alone and are not saved.")
+    c2.button("Reset picks", on_click=reset_whatif, disabled=not active, width="stretch")
+    for note in stt.notes:
+        st.caption(f"\u26a0\ufe0f {note}")
+
+    table = odds_for(stt.field, stt.known)
+    if active:
+        real = swiss.state(event)
+        base = odds_for(real.field, real.known)
+    else:
+        base = table
+    if stage == "Play-In":
+        worlds_playin(event, stt)
+    else:
+        worlds_title(table, base, active)
+    title_strip(table, active)
+
+
+def projected_odds() -> None:
+    """Before the field is confirmed (or for another season): the projected odds."""
     odds = load_odds()
     if odds.empty:
         st.info("No odds yet. Run `python monte_carlo.py`.")
         return
-
     st.warning(
         "The Worlds field is **not confirmed**. This is a projected field built "
         "from the top calibrated teams per league, per `worlds_field.toml`.",
-        icon="⚠️",
+        icon="\u26a0\ufe0f",
     )
-
     top = odds.head(3)
     for col, (_, r) in zip(st.columns(3), top.iterrows()):
         col.metric(r["team"], f"{r['title_%']:.1f}%", f"{r['knockout_%']:.0f}% to knockouts")
-
     metric = st.radio("Show", ["title_%", "finals_%", "knockout_%"], horizontal=True)
     st.bar_chart(odds.set_index("team")[metric].sort_values(ascending=False), height=380)
     st.dataframe(odds, width="stretch", hide_index=True)
@@ -650,8 +671,7 @@ PAGES = {
     "Power ranking": page_ranking,
     "Team": page_team,
     "Rating history": page_history,
-    "Worlds bracket": page_bracket,
-    "Worlds odds": page_odds,
+    "Worlds": page_worlds,
     "Model health": page_health,
 }
 
