@@ -1,6 +1,9 @@
 gdown>=6.1.0
 pandas>=2.2
+# The Swiss/knockout engine (monte_carlo.py) is vectorized with numpy.
+numpy>=1.26
 # Required by every pipeline stage's DataFrame.to_parquet / read_parquet call.
 # Was previously only present transitively, so a clean install would crash.
 pyarrow>=15
-streamlit>=1.40
+# The bracket board uses st.components.v2; 1.61 is the version it was built against.
+streamlit>=1.61

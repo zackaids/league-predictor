@@ -2,7 +2,7 @@
 
 Two paths, because the stages have very different costs:
 
-  fast (default)  clean -> elo -> calibrate -> monte_carlo, for one season.
+  fast (default)  clean -> elo -> calibrate -> odds, for one season.
                   Reads a single raw CSV (~80MB).
   full            additionally rebuilds region_strength, which reads *every*
                   raw CSV (13 files, ~790MB). The region prior only moves when
@@ -59,6 +59,7 @@ def run(year: int = CURRENT_YEAR, *, fetch: bool = False, full: bool = False,
     import clean
     import elo
     import monte_carlo
+    import swiss
 
     paths.ensure_dirs()
 
@@ -106,8 +107,27 @@ def run(year: int = CURRENT_YEAR, *, fetch: bool = False, full: bool = False,
         elo.run(year)
     with stage(f"calibrate {year}"):
         calibrate.run(year)
-    with stage(f"monte_carlo {year}"):
-        monte_carlo.simulate_and_write(year, n_sims, seed)
+    odds_ok = True
+    if swiss.CONFIG.exists():
+        # The confirmed Swiss event replaces the projection once its config is
+        # for this season. It is a side feature like the Play-In page: a team
+        # renamed upstream or a bad hand edit must not stop the ratings and
+        # history below from being committed. But nothing may stand in for odds
+        # that failed -- the projected field is wrong by now -- so a failure
+        # keeps the previous odds file and skips this run's odds history row.
+        try:
+            if swiss.is_current(year):
+                with stage(f"swiss + knockout odds {year}"):
+                    swiss.write_outputs(year, n_sims, seed)
+            else:
+                with stage(f"monte_carlo {year} (projected field)"):
+                    monte_carlo.simulate_and_write(year, n_sims, seed)
+        except Exception as exc:
+            odds_ok = False
+            print(f"\nSwiss odds skipped: {exc}")
+    else:
+        with stage(f"monte_carlo {year} (projected field)"):
+            monte_carlo.simulate_and_write(year, n_sims, seed)
 
     if bracket.CONFIG.exists():
         # A side feature: a team renamed upstream must not stop the ratings and
@@ -126,7 +146,7 @@ def run(year: int = CURRENT_YEAR, *, fetch: bool = False, full: bool = False,
 
     import history
     with stage("record history snapshot"):
-        history.record(year)
+        history.record(year, odds=odds_ok)
 
     emit_github_output(changed=True)
     return True

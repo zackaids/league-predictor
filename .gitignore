@@ -19,3 +19,10 @@ data/processed/*_team_games.parquet
 
 # Local per-machine Claude Code settings
 .claude/settings.local.json
+
+# macOS Finder folder metadata
+.DS_Store
+
+# CodeGraph's local index. It is per-machine, and the folder's presence is what
+# marks a checkout as indexed, so a committed copy would mislead other clones.
+.codegraph/
