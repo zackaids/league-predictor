@@ -113,7 +113,7 @@ class Odds:
     title: np.ndarray
     occupancy: dict = dc_field(default_factory=dict)   # round -> (w, l) -> [T]
     meet: dict = dc_field(default_factory=dict)        # round -> [T, T] P(a plays b)
-    qf_slot: np.ndarray | None = None                  # [T, 4]
+    ko_slot: np.ndarray | None = None                  # [T, 7] P(team plays in each KO_SERIES)
 
     @property
     def fallback(self) -> int:
@@ -343,10 +343,10 @@ def _execute(field: Field, known: Known, n: int, seed: int | None,
     def bc(slots: np.ndarray) -> np.ndarray:
         return np.bincount(slot_team[rows, slots], minlength=T)
 
-    qf_slot = np.zeros((T, 4))
-    for i in range(4):
-        qf_slot[:, i] = (np.bincount(slot_team[rows, qa[:, i]], minlength=T)
-                         + np.bincount(slot_team[rows, qb[:, i]], minlength=T))
+    ko_slot = np.zeros((T, len(KO_SERIES)))
+    for j, (sa, sb) in enumerate([(qa[:, 0], qb[:, 0]), (qa[:, 1], qb[:, 1]), (qa[:, 2], qb[:, 2]),
+                                  (qa[:, 3], qb[:, 3]), (qw[0], qw[1]), (qw[2], qw[3]), (sw[0], sw[1])]):
+        ko_slot[:, j] = bc(sa) + bc(sb)
 
     odds = Odds(
         n=n, stats=stats,
@@ -358,7 +358,7 @@ def _execute(field: Field, known: Known, n: int, seed: int | None,
         title=bc(champ) / n,
         occupancy={r: {k: v / n for k, v in d.items()} for r, d in occupancy.items()},
         meet={r: m_ / n for r, m_ in meet.items()},
-        qf_slot=qf_slot / n,
+        ko_slot=ko_slot / n,
     )
     trace = None
     if collect:

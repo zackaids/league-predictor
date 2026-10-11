@@ -38,12 +38,16 @@ python3 -m venv .venv
 .venv/bin/python history.py                     # append today's snapshot
 .venv/bin/python history.py --backfill          # reconstruct the whole season
 
+# Worlds odds (the pipeline runs this; standalone for debugging)
+.venv/bin/python swiss.py                       # Swiss + knockout odds from worlds_swiss.toml
+.venv/bin/python bracket.py                     # Play-In field + odds
+
 # Frontend
 .venv/bin/streamlit run app.py
 ```
 
 Individual stages still run standalone (`clean.py`, `elo.py`, `calibrate.py`,
-`monte_carlo.py`, `region_strength.py`, `features.py`), each taking `--year`.
+`monte_carlo.py` (projected field), `region_strength.py`, `features.py`), each taking `--year`.
 
 ## Data fetching
 
@@ -76,7 +80,7 @@ tracked — Actions commits them back, and Streamlit Cloud serves from them.
 ## Pipeline
 
 ```
-fetch_data ─▶ clean ─▶ elo ─▶ calibrate ─▶ monte_carlo ─▶ history
+fetch_data ─▶ clean ─▶ elo ─▶ calibrate ─▶ odds (swiss.py | monte_carlo.py) ─▶ history
                         ▲
         region_strength ┘   (cross-year, slow, --full only)
 ```
@@ -136,10 +140,44 @@ fresh checkout has only the current year and would otherwise overwrite a
 LCP team to its real constituent region from 2023-2025 history; unresolvable orgs
 get a composite (`APAC*`).
 
-**`monte_carlo.py`** builds a projected field from `worlds_field.toml` (slots and
-already-qualified teams are assumptions, so they live in config) and simulates
-Swiss + Bo5 knockout. Its RNG is seeded by default so scheduled reruns don't
-jitter the odds when ratings haven't moved.
+**Worlds odds.** `monte_carlo.py` is a numpy engine for the real 2026 format:
+tiered Round 1 with no same-league pair, same-record draws with no rematches in
+rounds 2-5, Bo3 iff a team can advance or be eliminated, the quarterfinal draw
+(each 3-0 v a 3-2, 3-0s on opposite halves -- the 2025 precedent, not stated for
+2026), Bo5 knockout. A `Known` state pins what has really happened (or a
+what-if) and everything else is sampled, so the same call serves the daily odds,
+the live app and "play out the rest". The 16th Swiss team is the Play-In winner,
+sampled from the Play-In page's exact odds until it is decided. Draws are uniform
+over legal pairings (rejection sampling), games are independent, and the RNG is
+seeded so scheduled reruns don't jitter the history. `swiss.py` is the confirmed
+event on top of it (config, results, what-if layering); without
+`worlds_swiss.toml` for the season, `monte_carlo.simulate_and_write` falls back to
+a projected field from `worlds_field.toml`.
+
+**Running the event** (`worlds_swiss.toml`). Facts are hand-entered and the app
+reads the config live, so after Riot announces a draw add it and push -- no
+pipeline run needed. Round 1 is drawn Oct 18; rounds 2-5 on Oct 23, 24, 26, 30;
+the quarterfinals Oct 31. Draws are keyed by the record going in
+(`[draws.2]` / `"1-0" = [["A", "B"], ...]`) and are validated against the format.
+Results come from the series log (`WLDs`, inside the stage's dates); a Bo3 at 1-0
+is not a result. Results Oracle's Elixir has not published yet are inferred from
+the next round's draw or the quarterfinal draw, and `[results.swiss]` /
+`[results.knockout]` override both. A series between two Swiss teams that no draw
+explains is reported in the page notes, not dropped. League code `WLDs` also holds
+September LPL qualifier series, which is why every window is a date range.
+
+**What-ifs.** The Worlds page keeps picks, hypothetical draws and a hypothetical
+quarterfinal draw in session state (`swiss.new_whatif`). `swiss.state` layers them
+over the real facts: a real result or draw always wins, and a pick or draw whose
+premise changed (an earlier result, the Play-In winner) is dropped along with
+everything built on it. The bracket UI is `board.py` + `assets/board.{js,css}` on
+`st.components.v2`; `worlds_view.py` builds its data without importing Streamlit.
+The component reads `assets/` at import, so edit them with the app restarted.
+
+**Pipeline guard.** The odds stage is guarded like the Play-In one: on failure
+the previous odds file stays and `history.record(odds=False)` skips that run's
+odds row, because stamping a stale file with today's date would present old odds
+as fresh.
 
 **Series log.** `elo.run()` also writes `{year}_series.parquet`: one row per
 series with both teams' Elo before/after and the net change, which the app's
