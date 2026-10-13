@@ -42,6 +42,10 @@ python3 -m venv .venv
 .venv/bin/python swiss.py                       # Swiss + knockout odds from worlds_swiss.toml
 .venv/bin/python bracket.py                     # Play-In field + odds
 
+# Crystal Ball (the Worlds Pick'Em bonus questions)
+.venv/bin/python crystal_ball.py                # answers + expected points -> data/processed/{year}_crystal_ball.csv
+.venv/bin/python crystal_ball.py --backtest 2025   # replay a past Worlds; --no-playin, --n, --reps
+
 # Frontend
 .venv/bin/streamlit run app.py
 ```
@@ -188,6 +192,21 @@ cannot rebuild it. Series are split when a pair's `game` number stops
 increasing, or after a 12h gap when the number is missing. The feed shows raw
 Elo deltas; for league games that equals the change in `calibrated`, for
 internationals it is ~10% larger.
+
+**Crystal Ball.** `crystal_ball.py` answers the 18 Pick'Em bonus questions (points per question in
+`crystal_ball.toml`, so the best pick is the likeliest answer). The tournament is the existing engine --
+Play-In walked with `bracket`, Swiss + knockout from `monte_carlo.run_trace` -- with each series expanded
+into games and each game's stats bootstrapped from the teams' own last ~135 days, *same result*, matched to
+the matchup's lopsidedness (a plain Elo's pre-game probability) and with Fearless locks inside a series.
+Presence is the exception: it uses a regression on the newest patch's presence (all leagues), because the
+pool simulation is overconfident about a meta that resets every Worlds (the newest patch counts x8). Most deaths
+per game is a ranking of high-volume champions (the real leader is an engage support, not a lucky 5-game
+champion), and highest win rate is a flat lottery: no signal beat a uniform guess in backtests. The shortest-game winner is each
+team's share of the event's wins (the pool model gave the real winner 0% in 2022-25). Teemo and the Finals
+MVP role are base rates; 15-kill games use the observed Worlds rate. Every calibration constant in the
+toml cites the backtest that set it -- refit with `--backtest` rather than editing by hand. Two data traps:
+league `WLDs` also holds the LCK/LPL regional qualifiers (use `worlds_window`), and the Play-In counts
+toward the stats by default because the rules are silent (`--no-playin` to check what flips).
 
 ## Validation
 
