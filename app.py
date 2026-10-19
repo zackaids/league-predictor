@@ -27,6 +27,7 @@ import elo
 import history
 import monte_carlo as mc
 import paths
+import pickem
 import swiss
 import worlds_view
 from paths import CURRENT_YEAR
@@ -430,7 +431,8 @@ def page_history() -> None:
 # ------------------------------------------------------------------ Worlds
 
 N_SIMS, SEED = 20000, 0     # what the pipeline uses, so the no-what-if odds match the committed ones
-STAGE_LABELS = ["Play-In", "Swiss", "Knockout", "Title odds"]
+STAGE_LABELS = ["Play-In", "Swiss", "Pick'Em", "Knockout", "Title odds"]
+PICKEM_N = 100_000          # simulations for the search and again for the hold-out
 TITLE_METRICS = {"Title": "title_%", "Final": "finals_%", "Semifinals": "semis_%",
                  "Advance from Swiss": "knockout_%"}
 
@@ -460,15 +462,30 @@ def run_odds(key: str, _field, _known):
     return mc.simulate(_field, _known, N_SIMS, SEED)
 
 
+def _odds_key(field, known) -> str:
+    """Everything the simulation depends on, spelled out, for the cache."""
+    return repr((field.teams, [round(float(x), 1) for x in field.rating],
+                 sorted(field.playin.items()), known.playin_winner,
+                 sorted(known.draws.items()),
+                 sorted((r, sorted(d.items())) for r, d in known.results.items()),
+                 known.qf, sorted(known.ko.items())))
+
+
 def odds_for(field, known):
     """(title-odds table, full simulation result) for a field and what is known."""
-    key = repr((field.teams, [round(float(x), 1) for x in field.rating],
-                sorted(field.playin.items()), known.playin_winner,
-                sorted(known.draws.items()),
-                sorted((r, sorted(d.items())) for r, d in known.results.items()),
-                known.qf, sorted(known.ko.items())))
-    odds = run_odds(key, field, known)
+    odds = run_odds(_odds_key(field, known), field, known)
     return mc.odds_table(field, odds, "confirmed"), odds
+
+
+@st.cache_data(show_spinner="Simulating the Swiss...")
+def run_pickem_sims(key: str, _field, _known):
+    return pickem.simulate(_field, _known, PICKEM_N, SEED)
+
+
+@st.cache_data(show_spinner="Searching for the best picks...")
+def run_pickem(key: str, k: int, _field, _known):
+    train, hold = run_pickem_sims(key, _field, _known)
+    return pickem.analyze(_field, train, hold, pickem.load_config(), [k], SEED)
 
 
 def worlds_whatif() -> dict:
@@ -564,6 +581,113 @@ def worlds_swiss(event, stt, odds, table, cbs) -> None:
         "0-3_%": pct, "title_%": pct})
 
 
+# Diverging blue <-> red, equal arms, darker = further from the advance line. Each arm
+# is an ordinal ramp validated against the light and the dark surface.
+RECORD_COLORS = ["#1c5cab", "#3987e5", "#86b6ef", "#ef8f8e", "#e34948", "#b53434"]
+RECORD_INK = ["#ffffff", "#ffffff", "#0b0b0b", "#0b0b0b", "#ffffff", "#ffffff"]
+
+
+def record_chart(a: "pickem.Analysis") -> alt.Chart:
+    """One bar per team: how its Swiss ends, 3-0 through 0-3, sorted by P(advance)."""
+    rows = []
+    for t, team in enumerate(a.field.teams):
+        if a.entered[t] <= 0:
+            continue
+        x = 0.0
+        for i, rec in enumerate(pickem.LABELS):
+            p = 100 * float(a.record[t, i])
+            rows.append({"team": team, "record": rec, "pct": p, "x0": x, "x1": x + p, "mid": x + p / 2})
+            x += p
+    df = pd.DataFrame(rows)
+    order = list(df[df["record"].isin(["3-0", "3-1", "3-2"])].groupby("team")["pct"].sum()
+                 .sort_values(ascending=False).index)
+    scale = alt.Scale(domain=pickem.LABELS, range=RECORD_COLORS)
+    y = alt.Y("team:N", sort=order, title=None, axis=alt.Axis(labelLimit=220))
+    bars = alt.Chart(df).mark_bar(size=18).encode(
+        y=y, x=alt.X("x0:Q", title="Chance of finishing on each record (%)", scale=alt.Scale(domain=[0, 100])),
+        x2="x1:Q",
+        color=alt.Color("record:N", scale=scale, sort=pickem.LABELS,
+                        legend=alt.Legend(orient="top", title=None, direction="horizontal")),
+        tooltip=["team", "record", alt.Tooltip("pct:Q", title="chance (%)", format=".1f")])
+    ink = alt.Scale(domain=pickem.LABELS, range=RECORD_INK)
+    labels = alt.Chart(df[df["pct"] >= 7]).mark_text(fontSize=10).encode(
+        y=y, x="mid:Q", text=alt.Text("pct:Q", format=".0f"),
+        color=alt.Color("record:N", scale=ink, legend=None))
+    # Independent colour scales, or the labels inherit the bars' colours and vanish.
+    return (bars + labels).resolve_scale(color="independent").properties(height=26 * df["team"].nunique() + 40)
+
+
+def picks_frame(a: "pickem.Analysis", p: "pickem.Picks") -> pd.DataFrame:
+    return pd.DataFrame({"pick": p.slots, "team": [a.field.teams[t] for t in p.teams],
+                         "chance it scores (%)": [100 * x for x in p.p_correct]})
+
+
+def worlds_pickem(stt) -> None:
+    cfg = pickem.load_config()
+    slots = ", ".join(f"{c}× {s}" for s, c in cfg.counts.items())
+    st.caption(f"Swiss Pick'Em: {slots} ({cfg.max_points} picks, one team per pick). "
+               f"Simulated {PICKEM_N:,} Swiss stages to pick the teams, then scored the picks on "
+               f"{PICKEM_N:,} fresh ones, so the odds below are not flattered by the search. "
+               "It follows your what-ifs: pick a result on the Swiss board and the picks update.")
+    k = st.slider("Aim for at least this many picks right", 1, cfg.max_points, min(6, cfg.max_points),
+                  key="pickem_k", help="Maximizes the chance of reaching this score. The expected-points "
+                  "picks are the safe average; a high target favors picks that can all hit together.")
+    field = stt.field
+    with st.expander("Rating what-if"):
+        st.caption("Nudge a team's rating to see how much the picks lean on it. A team whose rating "
+                   "was lifted by a hot stretch (say, Play-In wins over weaker teams) is the usual case. "
+                   "`python pickem.py --no-playin` prints every team's rating without the Play-In.")
+        picked = st.multiselect("Teams to adjust", field.teams, key="pickem_adj_teams")
+        adj = {}
+        for team in picked:
+            delta = st.number_input(f"{team}: change in rating", -200, 200, 0, 5, key=f"pickem_adj_{team}")
+            if delta:
+                adj[team] = float(field.rating[field.index[team]]) + delta
+        if adj:
+            field = pickem.with_ratings(field, adj)
+    if adj:
+        st.warning("Ratings adjusted: " + ", ".join(
+            f"{t} {stt.field.rating[stt.field.index[t]]:.0f} \u2192 {r:.0f}" for t, r in adj.items()))
+    a = run_pickem(_odds_key(field, stt.known), k, field, stt.known)
+    exp, best = a.expected, a.best[k]
+
+    st.altair_chart(record_chart(a), width="stretch")
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.subheader("Most expected picks right")
+        st.metric("Expected correct", f"{exp.expected:.2f} / {cfg.max_points}",
+                  f"{100 * exp.p_at_least(k):.1f}% to reach {k}", delta_color="off")
+        st.dataframe(picks_frame(a, exp), hide_index=True, width="stretch", column_config={
+            "chance it scores (%)": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=100)})
+    with c2:
+        st.subheader(f"Best chance of {k}+ right")
+        st.metric(f"Chance of {k}+", f"{100 * best.p_at_least(k):.1f}%",
+                  f"{100 * (best.p_at_least(k) - exp.p_at_least(k)):+.1f} pts vs the expected-points picks",
+                  delta_color="off")
+        st.dataframe(picks_frame(a, best), hide_index=True, width="stretch", column_config={
+            "chance it scores (%)": st.column_config.ProgressColumn(format="%.1f%%", min_value=0, max_value=100)})
+    if sorted(zip(best.slots, best.teams)) == sorted(zip(exp.slots, exp.teams)):
+        st.caption("For this target the two goals pick the same teams for the same slots.")
+    elif sorted(best.teams) == sorted(exp.teams):
+        st.caption("Same teams either way; the difference is which slot each one fills.")
+
+    dist = pd.DataFrame({"correct": np.tile(np.arange(cfg.max_points + 1), 2),
+                         "pick set": ["Most expected"] * (cfg.max_points + 1) + [f"Best for {k}+"] * (cfg.max_points + 1),
+                         "chance (%)": 100 * np.concatenate([exp.dist, best.dist])})
+    st.altair_chart(
+        alt.Chart(dist).mark_bar(cornerRadiusEnd=3).encode(
+            x=alt.X("correct:O", title="Picks right"),
+            xOffset="pick set:N",
+            y=alt.Y("chance (%):Q", title="Chance (%)"),
+            color=alt.Color("pick set:N", title=None, legend=alt.Legend(orient="top"),
+                            scale=alt.Scale(range=["#2a78d6", "#eb6834"])),
+            tooltip=["correct", "pick set", alt.Tooltip("chance (%):Q", format=".2f")]
+        ).properties(height=240), width="stretch")
+    st.caption("Chance of each number right, from the hold-out simulations. A high score such as 8 of 8 "
+               "is a rare event, so its chance is only good to a few tenths of a point.")
+
+
 def worlds_knockout(event, stt, odds, cbs) -> None:
     teams = worlds_view.Teams.from_rows(event.rows, set(load_ratings()["team"]))
     cfg = event.cfg
@@ -646,6 +770,8 @@ def page_worlds() -> None:
         worlds_playin(event, stt, cbs)
     elif stage == "Swiss":
         worlds_swiss(event, stt, odds, table, cbs)
+    elif stage == "Pick'Em":
+        worlds_pickem(stt)
     elif stage == "Knockout":
         worlds_knockout(event, stt, odds, cbs)
     else:

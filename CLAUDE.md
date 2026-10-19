@@ -32,6 +32,7 @@ python3 -m venv .venv
 .venv/bin/python backtest.py                    # all three tests
 .venv/bin/python backtest.py --quick            # skip the slow cross-region test
 .venv/bin/python backtest.py --sweep-k          # K-factor sweep
+.venv/bin/python backtest.py --playin           # does Play-In form predict the main stage? (reads every raw CSV)
 .venv/bin/python backtest.py --report           # write data/processed/backtest_report.json
 
 # History
@@ -42,6 +43,12 @@ python3 -m venv .venv
 .venv/bin/python swiss.py                       # Swiss + knockout odds from worlds_swiss.toml
 .venv/bin/python bracket.py                     # Play-In field + odds
 .venv/bin/python lolesports.py                  # after a draw: prints the TOML to paste (read-only)
+
+# Swiss Pick'Em (which teams to pick, from simulated Swiss runs)
+.venv/bin/python pickem.py                      # picks + hold-out odds -> data/processed/{year}_pickem.csv
+.venv/bin/python pickem.py --n 100000 --k 6     # fewer sims; only optimize P(>= 6 right)
+.venv/bin/python pickem.py --no-playin          # picks if the Play-In results counted for nothing
+.venv/bin/python pickem.py --rating "Karmine Corp=1708"   # pin any rating (name or tricode)
 
 # Crystal Ball (the Worlds Pick'Em bonus questions)
 .venv/bin/python crystal_ball.py                # answers + expected points -> data/processed/{year}_crystal_ball.csv
@@ -199,6 +206,18 @@ cannot rebuild it. Series are split when a pair's `game` number stops
 increasing, or after a 12h gap when the number is missing. The feed shows raw
 Elo deltas; for league games that equals the change in `calibrated`, for
 internationals it is ~10% larger.
+
+**Swiss Pick'Em.** `pickem.py` picks the teams for the Swiss bracket (counts and points in `pickem.toml`).
+`monte_carlo.simulate(keep_runs=True)` keeps every run's final record, so picks are scored on whole simulated
+stages. Most expected points depends only on per-team marginals and is solved exactly (DP over teams); best
+chance of >= k points depends on the joint outcomes (two favorites who meet at 1-0 cannot both go 3-0) and is a
+local search. The search runs on one set of sims and every reported number comes from an independent hold-out
+(seed + 1), because a rare 8/8 hit is a few dozen runs and over-fits easily. The app's Pick'Em stage reuses
+`swiss.state`, so what-ifs re-optimize the picks. A "Rating what-if" expander (and `--rating` / `--no-playin` on
+the CLI) re-runs it with some ratings changed: the Play-In winner's rating includes ~11 games of Play-In Elo, and
+`backtest.py --playin` (8 Worlds, 245 main-stage games) found that counting those games at 0x-0.5x predicts the
+main stage better than the shipped 1x, though the gap is inside series-level noise; 1.5x is clearly worse. The
+Play-In windows in that test are hand-read from daily game counts (`PLAYIN_WINDOWS`).
 
 **Crystal Ball.** `crystal_ball.py` answers the 18 Pick'Em bonus questions (points per question in
 `crystal_ball.toml`, so the best pick is the likeliest answer). The tournament is the existing engine --
