@@ -1,0 +1,296 @@
+question,answer,probability,points,expected_points,pick
+presence,Vi,0.2044,50,10.22,True
+presence,Nocturne,0.1634,50,8.17,False
+presence,Jarvan IV,0.0969,50,4.85,False
+presence,Cassiopeia,0.0625,50,3.13,False
+presence,Lee Sin,0.0515,50,2.58,False
+presence,Orianna,0.0483,50,2.42,False
+presence,Syndra,0.0449,50,2.25,False
+presence,Qiyana,0.0357,50,1.78,False
+presence,Lulu,0.0352,50,1.76,False
+presence,Lucian,0.0323,50,1.61,False
+presence,Nautilus,0.026,50,1.3,False
+presence,Olaf,0.0246,50,1.23,False
+presence,Caitlyn,0.0221,50,1.11,False
+presence,Rumble,0.0207,50,1.03,False
+presence,Locke,0.0156,50,0.78,False
+presence,Ezreal,0.013,50,0.65,False
+presence,Ryze,0.0117,50,0.58,False
+presence,Akali,0.0095,50,0.47,False
+presence,Kalista,0.0078,50,0.39,False
+presence,Karma,0.0067,50,0.34,False
+presence,K'Sante,0.0064,50,0.32,False
+presence,Jayce,0.0052,50,0.26,False
+presence,Seraphine,0.0048,50,0.24,False
+presence,Bard,0.0039,50,0.2,False
+presence,Yunara,0.0039,50,0.19,False
+presence,Xin Zhao,0.0038,50,0.19,False
+presence,Wukong,0.0037,50,0.19,False
+presence,Ambessa,0.0034,50,0.17,False
+presence,Viktor,0.0033,50,0.17,False
+presence,Poppy,0.0029,50,0.14,False
+presence,Jhin,0.0027,50,0.14,False
+presence,Milio,0.0023,50,0.12,False
+presence,Skarner,0.0022,50,0.11,False
+champ_wr,Qiyana,0.0323,50,1.61,True
+champ_wr,Poppy,0.0323,50,1.61,False
+champ_wr,Ambessa,0.0323,50,1.61,False
+champ_wr,Lulu,0.0323,50,1.61,False
+champ_wr,Locke,0.0323,50,1.61,False
+champ_wr,Wukong,0.0323,50,1.61,False
+champ_wr,Yunara,0.0323,50,1.61,False
+champ_wr,Viktor,0.0323,50,1.61,False
+champ_wr,Kalista,0.0323,50,1.61,False
+champ_wr,Lee Sin,0.0323,50,1.61,False
+champ_wr,Vi,0.0323,50,1.61,False
+champ_wr,Cassiopeia,0.0323,50,1.61,False
+champ_wr,Ezreal,0.0323,50,1.61,False
+champ_wr,Bard,0.0323,50,1.61,False
+champ_wr,Rumble,0.0323,50,1.61,False
+champ_wr,Lucian,0.0323,50,1.61,False
+champ_wr,Orianna,0.0323,50,1.61,False
+champ_wr,Milio,0.0323,50,1.61,False
+champ_wr,Syndra,0.0323,50,1.61,False
+champ_wr,Seraphine,0.0323,50,1.61,False
+champ_wr,Xin Zhao,0.0323,50,1.61,False
+champ_wr,Ryze,0.0323,50,1.61,False
+champ_wr,Caitlyn,0.0323,50,1.61,False
+champ_wr,Nocturne,0.0323,50,1.61,False
+champ_wr,Jayce,0.0323,50,1.61,False
+champ_wr,Olaf,0.0323,50,1.61,False
+champ_wr,Akali,0.0323,50,1.61,False
+champ_wr,Karma,0.0323,50,1.61,False
+champ_wr,Jarvan IV,0.0323,50,1.61,False
+champ_wr,K'Sante,0.0323,50,1.61,False
+champ_wr,Nautilus,0.0323,50,1.61,False
+champ_deaths,Nautilus,0.4685,50,23.42,True
+champ_deaths,Camille,0.0375,50,1.88,False
+champ_deaths,Jarvan IV,0.031,50,1.55,False
+champ_deaths,Kalista,0.0277,50,1.39,False
+champ_deaths,Rell,0.027,50,1.35,False
+champ_deaths,Pantheon,0.0238,50,1.19,False
+champ_deaths,Xin Zhao,0.0231,50,1.15,False
+champ_deaths,Olaf,0.0212,50,1.06,False
+champ_deaths,Jayce,0.0197,50,0.98,False
+champ_deaths,Vi,0.0165,50,0.82,False
+champ_deaths,Neeko,0.0159,50,0.79,False
+champ_deaths,Leona,0.0152,50,0.76,False
+champ_deaths,Yunara,0.0135,50,0.68,False
+champ_deaths,Qiyana,0.0131,50,0.65,False
+champ_deaths,Renata Glasc,0.0105,50,0.53,False
+champ_deaths,Varus,0.0102,50,0.51,False
+champ_deaths,Cho'Gath,0.0099,50,0.49,False
+champ_deaths,Pyke,0.0096,50,0.48,False
+champ_deaths,Nocturne,0.0092,50,0.46,False
+champ_deaths,Alistar,0.0083,50,0.41,False
+champ_deaths,Lee Sin,0.0083,50,0.41,False
+champ_deaths,Ashe,0.0079,50,0.4,False
+champ_deaths,Bard,0.0079,50,0.4,False
+champ_deaths,Annie,0.0072,50,0.36,False
+champ_deaths,Shen,0.0069,50,0.34,False
+champ_deaths,Caitlyn,0.0068,50,0.34,False
+champ_deaths,Zeri,0.0067,50,0.34,False
+champ_deaths,Lucian,0.0063,50,0.32,False
+champ_deaths,Maokai,0.0062,50,0.31,False
+champ_deaths,Corki,0.0062,50,0.31,False
+champ_deaths,Lissandra,0.0058,50,0.29,False
+champ_deaths,Miss Fortune,0.005,50,0.25,False
+champ_deaths,Jax,0.0043,50,0.22,False
+champ_deaths,Wukong,0.0043,50,0.21,False
+champ_deaths,Yone,0.0041,50,0.21,False
+champ_deaths,Syndra,0.004,50,0.2,False
+champ_deaths,Tristana,0.0036,50,0.18,False
+champ_deaths,Kai'Sa,0.0035,50,0.17,False
+champ_deaths,Renekton,0.0035,50,0.17,False
+champ_deaths,Rumble,0.0034,50,0.17,False
+champ_deaths,Sylas,0.0034,50,0.17,False
+champ_deaths,Azir,0.0032,50,0.16,False
+champ_deaths,Taliyah,0.0031,50,0.16,False
+champ_deaths,Akali,0.0029,50,0.14,False
+champ_deaths,Ambessa,0.0029,50,0.14,False
+champ_deaths,Zaahen,0.0029,50,0.14,False
+champ_deaths,Ryze,0.0028,50,0.14,False
+champ_deaths,Cassiopeia,0.0028,50,0.14,False
+champ_deaths,Mel,0.0027,50,0.14,False
+champ_deaths,Skarner,0.0027,50,0.14,False
+champ_deaths,Sivir,0.0027,50,0.14,False
+champ_deaths,Sion,0.0025,50,0.12,False
+champ_deaths,Locke,0.0023,50,0.12,False
+champ_deaths,Aurora,0.0023,50,0.12,False
+champ_deaths,Galio,0.0023,50,0.11,False
+champ_deaths,Seraphine,0.0022,50,0.11,False
+champ_deaths,Yorick,0.0022,50,0.11,False
+champ_deaths,Vayne,0.0021,50,0.11,False
+kda,Canyon,0.1583,50,7.91,False
+kda,Smash,0.0666,50,3.33,False
+kda,Zeka,0.2512,50,12.56,True
+kda,Keria,0.0394,50,1.97,False
+kda,Eddie,0.015,50,0.75,False
+kda,Ackerman,0.0575,50,2.88,False
+kda,Knight,0.073,50,3.65,False
+kda,CoreJJ,0.0036,50,0.18,False
+kda,SkewMond,0.0053,50,0.26,False
+kda,Hope,0.0334,50,1.67,False
+kda,Bie,0.0154,50,0.77,False
+kda,Chovy,0.0783,50,3.91,False
+kda,Viper,0.012,50,0.6,False
+kda,Rookie,0.0182,50,0.91,False
+kda,Peyz,0.0065,50,0.33,False
+kda,Josedeodo,0.0234,50,1.17,False
+kda,Ruler,0.0192,50,0.96,False
+kda,Kael,0.0121,50,0.61,False
+kda,Berserker,0.0201,50,1.01,False
+kda,ShowMaker,0.0135,50,0.68,False
+kda,Meiko,0.0039,50,0.19,False
+kda,Caliste,0.011,50,0.55,False
+kda,Hizto,0.002,50,0.1,False
+kda,Elyoya,0.0043,50,0.21,False
+kda,Tarzan,0.0095,50,0.47,False
+kda,Career,0.0075,50,0.38,False
+kda,Delight,0.007,50,0.35,False
+kda,Duro,0.004,50,0.2,False
+kda,Zhuo,0.0044,50,0.22,False
+kda,Xun,0.004,50,0.2,False
+kda,kyeahoo,0.002,50,0.1,False
+damage,Viper,0.0558,50,2.79,False
+damage,Hope,0.0245,50,1.22,False
+damage,Peyz,0.263,50,13.15,True
+damage,Caliste,0.1253,50,6.26,False
+damage,JiaQi,0.0928,50,4.64,False
+damage,JackeyLove,0.0496,50,2.48,False
+damage,Ruler,0.0251,50,1.26,False
+damage,Knight,0.014,50,0.7,False
+damage,Supa,0.014,50,0.7,False
+damage,Hans Sama,0.0394,50,1.97,False
+damage,Creme,0.0372,50,1.86,False
+damage,Doggo,0.0234,50,1.17,False
+damage,Gumayusi,0.0274,50,1.37,False
+damage,Saint,0.0093,50,0.47,False
+damage,Smash,0.0087,50,0.43,False
+damage,Berserker,0.0125,50,0.62,False
+damage,Duduhh,0.0189,50,0.95,False
+damage,Yeon,0.0029,50,0.14,False
+damage,Caps,0.0022,50,0.11,False
+damage,Rookie,0.0125,50,0.62,False
+damage,Jojopyun,0.0069,50,0.34,False
+damage,Eddie,0.0145,50,0.72,False
+damage,Chovy,0.0022,50,0.11,False
+damage,Other (one-game sub),0.11,50,5.5,False
+kp,Keria,0.0285,50,1.42,False
+kp,CoreJJ,0.038,50,1.9,False
+kp,Delight,0.0141,50,0.7,False
+kp,Meiko,0.0929,50,4.64,True
+kp,Kael,0.0323,50,1.61,False
+kp,Wei,0.0571,50,2.86,False
+kp,Zhuo,0.0384,50,1.92,False
+kp,Isles,0.0357,50,1.78,False
+kp,Feisty,0.0039,50,0.2,False
+kp,ON,0.0164,50,0.82,False
+kp,Alvaro,0.0632,50,3.16,False
+kp,Busio,0.0116,50,0.58,False
+kp,Tarzan,0.008,50,0.4,False
+kp,Ackerman,0.0201,50,1.0,False
+kp,Hizto,0.0239,50,1.19,False
+kp,Elyoya,0.0238,50,1.19,False
+kp,Career,0.0379,50,1.89,False
+kp,Jojopyun,0.0022,50,0.11,False
+kp,Duro,0.0072,50,0.36,False
+kp,Labrov,0.0039,50,0.2,False
+kp,SkewMond,0.0064,50,0.32,False
+kp,Curse,0.0098,50,0.49,False
+kp,Quid,0.0174,50,0.87,False
+kp,Bie,0.0189,50,0.95,False
+kp,Oner,0.0023,50,0.12,False
+kp,Kino,0.0051,50,0.26,False
+kp,Inspired,0.0044,50,0.22,False
+kp,Tian,0.0042,50,0.21,False
+kp,Shad0w,0.0056,50,0.28,False
+kp,Peyz,0.0033,50,0.17,False
+kp,Duduhh,0.002,50,0.1,False
+kp,Xun,0.0053,50,0.26,False
+kp,Creme,0.0022,50,0.11,False
+kp,Knight,0.0044,50,0.22,False
+kp,JackeyLove,0.0025,50,0.13,False
+kp,Other (one-game sub),0.33,50,16.5,False
+peyz_guma,Gumayusi,0.3655,100,36.55,False
+peyz_guma,Peyz,0.626,100,62.6,True
+peyz_guma,Tie,0.0085,100,0.85,False
+faker_700,No,0.985,100,98.5,True
+faker_700,Yes,0.015,100,1.5,False
+teemo,Yes,0.0311,100,3.11,False
+teemo,No,0.9689,100,96.89,True
+unique_champs,81,0.0008,50,0.04,False
+unique_champs,82,0.0008,50,0.04,False
+unique_champs,83,0.0003,50,0.01,False
+unique_champs,84,0.0008,50,0.04,False
+unique_champs,85,0.0013,50,0.06,False
+unique_champs,86,0.002,50,0.1,False
+unique_champs,87,0.0045,50,0.22,False
+unique_champs,88,0.0088,50,0.44,False
+unique_champs,89,0.0097,50,0.49,False
+unique_champs,90,0.0175,50,0.88,False
+unique_champs,91,0.022,50,1.1,False
+unique_champs,92,0.029,50,1.45,False
+unique_champs,93,0.0432,50,2.16,False
+unique_champs,94,0.0488,50,2.44,False
+unique_champs,95,0.056,50,2.8,False
+unique_champs,96,0.0745,50,3.72,False
+unique_champs,97,0.0762,50,3.81,False
+unique_champs,98,0.0823,50,4.11,True
+unique_champs,99,0.0742,50,3.71,False
+unique_champs,100,0.0798,50,3.99,False
+unique_champs,101,0.0765,50,3.82,False
+unique_champs,102,0.0663,50,3.31,False
+unique_champs,103,0.0542,50,2.71,False
+unique_champs,104,0.0445,50,2.23,False
+unique_champs,105,0.0348,50,1.74,False
+unique_champs,106,0.027,50,1.35,False
+unique_champs,107,0.0203,50,1.01,False
+unique_champs,108,0.0163,50,0.81,False
+unique_champs,109,0.012,50,0.6,False
+unique_champs,110,0.006,50,0.3,False
+unique_champs,111,0.005,50,0.25,False
+unique_champs,112,0.0025,50,0.12,False
+unique_champs,113,0.0008,50,0.04,False
+unique_champs,114,0.0005,50,0.03,False
+unique_champs,115,0.0005,50,0.03,False
+unique_champs,116,0.0005,50,0.03,False
+unique_champs,117,0.0003,50,0.01,False
+length_32,After 32:00,0.6068,50,30.34,True
+length_32,Before 32:00,0.3735,50,18.68,False
+length_32,Equal,0.0198,50,0.99,False
+kills_15,Yes,0.3488,50,17.44,False
+kills_15,No,0.6512,50,32.56,True
+cs_450,Yes,0.93,50,46.5,True
+cs_450,No,0.07,50,3.5,False
+mvp_role,top,0.1858,50,9.29,False
+mvp_role,jng,0.2387,50,11.93,False
+mvp_role,mid,0.2727,50,13.63,True
+mvp_role,bot,0.1759,50,8.8,False
+mvp_role,sup,0.1269,50,6.35,False
+regions_ko,5,0.265,50,13.25,False
+regions_ko,4,0.5383,50,26.91,True
+regions_ko,6,0.023,50,1.15,False
+regions_ko,3,0.1708,50,8.54,False
+regions_ko,2,0.003,50,0.15,False
+lcs_ko,Yes,0.5942,50,29.71,True
+lcs_ko,No,0.4057,50,20.29,False
+hle_t1,HLE,0.5717,50,30.84,True
+hle_t1,T1,0.3382,50,19.16,False
+hle_t1,Same placement,0.09,50,4.5,False
+shortest_game,Invictus Gaming,0.0428,50,2.14,False
+shortest_game,Team Liquid,0.0502,50,2.51,False
+shortest_game,Anyone's Legend,0.0646,50,3.23,False
+shortest_game,G2 Esports,0.066,50,3.3,False
+shortest_game,Hanwha Life Esports,0.1072,50,5.36,False
+shortest_game,LØS,0.0321,50,1.6,False
+shortest_game,LYON,0.038,50,1.9,False
+shortest_game,Bilibili Gaming,0.0819,50,4.09,False
+shortest_game,Gen.G,0.1378,50,6.89,True
+shortest_game,Karmine Corp,0.0581,50,2.91,False
+shortest_game,T1,0.0877,50,4.39,False
+shortest_game,Movistar KOI,0.0333,50,1.66,False
+shortest_game,Team Secret Whales,0.0493,50,2.46,False
+shortest_game,Dplus Kia,0.081,50,4.05,False
+shortest_game,Top Esports,0.0433,50,2.16,False
+shortest_game,CTBC Flying Oyster,0.0268,50,1.34,False

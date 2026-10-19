@@ -1,5 +1,7 @@
 # Worlds 2026 Play-In. 4 teams, double elimination, every series Bo5; exactly one
 # team advances to the 16-team Swiss stage. Draw made 2026-10-10.
+# Complete: Karmine Corp beat MVK Esports 3-0 in the qualifying match (Oct 18) and
+# advanced to the Swiss stage.
 #
 # These are facts, not assumptions (unlike worlds_field.toml), but they are
 # hand-entered, so check them against an official source when editing.
@@ -27,4 +29,9 @@ O2 = ["Cloud9 Kia", "Karmine Corp"]
 #   LF = lower final  QF = qualifying match (winner -> Swiss)
 # `score` is the winner's series score and is optional.
 [results]
-# O1 = { winner = "FURIA", score = "3-1" }
+O1 = { winner = "MVK Esports",  score = "3-0" }   # FURIA v MVK, Oct 15
+O2 = { winner = "Karmine Corp", score = "3-2" }   # Cloud9 Kia v KC, Oct 15
+UB = { winner = "Karmine Corp", score = "3-0" }   # MVK v KC, Oct 16
+LB = { winner = "FURIA",        score = "3-1" }   # FURIA v Cloud9 Kia, Oct 16
+LF = { winner = "MVK Esports",  score = "3-1" }   # MVK v FURIA, Oct 17
+QF = { winner = "Karmine Corp", score = "3-0" }   # KC v MVK, Oct 18 -> Swiss

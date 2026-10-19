@@ -1,6 +1,7 @@
 # Worlds 2026 Swiss stage + knockout. Facts, not assumptions (unlike
 # worlds_field.toml), but hand-entered: check them against an official source
-# (lolesports.com/news/worlds-2026-primer) when editing.
+# (lolesports.com/news/worlds-2026-primer) when editing, or run
+# `python lolesports.py`, which prints the TOML for any new draw or result.
 #
 # Format: 16 teams, 5 rounds. 3 wins advance, 3 losses are out. A match is Bo3
 # (Fearless) when it can advance or eliminate -- the record has 2 wins or 2
@@ -36,7 +37,17 @@ teams = [
 # Keyed by the record going in. Leave a round out until it is drawn.
 #   [draws.1]
 #   "0-0" = [["Gen.G", "Dplus Kia"], ...]
-[draws]
+[draws.1]
+"0-0" = [
+  ["Gen.G",               "Invictus Gaming"],
+  ["Team Liquid",         "CTBC Flying Oyster"],
+  ["Anyone's Legend",     "Karmine Corp"],
+  ["G2 Esports",          "Dplus Kia"],
+  ["Hanwha Life Esports", "Top Esports"],
+  ["LØS",                 "T1"],
+  ["Team Secret Whales",  "LYON"],
+  ["Bilibili Gaming",     "Movistar KOI"],
+]
 
 # Quarterfinal draw (Oct 31), in bracket order: QF1 and QF2 feed SF1, QF3 and
 # QF4 feed SF2.

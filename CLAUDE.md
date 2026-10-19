@@ -41,6 +41,11 @@ python3 -m venv .venv
 # Worlds odds (the pipeline runs this; standalone for debugging)
 .venv/bin/python swiss.py                       # Swiss + knockout odds from worlds_swiss.toml
 .venv/bin/python bracket.py                     # Play-In field + odds
+.venv/bin/python lolesports.py                  # after a draw: prints the TOML to paste (read-only)
+
+# Crystal Ball (the Worlds Pick'Em bonus questions)
+.venv/bin/python crystal_ball.py                # answers + expected points -> data/processed/{year}_crystal_ball.csv
+.venv/bin/python crystal_ball.py --backtest 2025   # replay a past Worlds; --no-playin, --n, --reps
 
 # Frontend
 .venv/bin/streamlit run app.py
@@ -163,8 +168,14 @@ Results come from the series log (`WLDs`, inside the stage's dates); a Bo3 at 1-
 is not a result. Results Oracle's Elixir has not published yet are inferred from
 the next round's draw or the quarterfinal draw, and `[results.swiss]` /
 `[results.knockout]` override both. A series between two Swiss teams that no draw
-explains is reported in the page notes, not dropped. League code `WLDs` also holds
-September LPL qualifier series, which is why every window is a date range.
+explains is reported in the page notes, not dropped.
+League code `WLDs` also holds September LPL qualifier series, which is why every window is a date range.
+`lolesports.py` reads the schedule behind lolesports.com (public API, fresher than
+OE for results), compares it with both configs and the series log, and prints the
+TOML for any new Play-In result, Swiss draw, result or quarterfinal draw, plus any
+`CONFLICT` with what is already entered (exit 1). It never writes the configs, and
+the quarterfinal pairs come back in start-time order, so confirm QF1-QF4 against
+the official bracket.
 
 **What-ifs.** The Worlds page keeps picks, hypothetical draws and a hypothetical
 quarterfinal draw in session state (`swiss.new_whatif`). `swiss.state` layers them
@@ -188,6 +199,21 @@ cannot rebuild it. Series are split when a pair's `game` number stops
 increasing, or after a 12h gap when the number is missing. The feed shows raw
 Elo deltas; for league games that equals the change in `calibrated`, for
 internationals it is ~10% larger.
+
+**Crystal Ball.** `crystal_ball.py` answers the 18 Pick'Em bonus questions (points per question in
+`crystal_ball.toml`, so the best pick is the likeliest answer). The tournament is the existing engine --
+Play-In walked with `bracket`, Swiss + knockout from `monte_carlo.run_trace` -- with each series expanded
+into games and each game's stats bootstrapped from the teams' own last ~135 days, *same result*, matched to
+the matchup's lopsidedness (a plain Elo's pre-game probability) and with Fearless locks inside a series.
+Presence is the exception: it uses a regression on the newest patch's presence (all leagues), because the
+pool simulation is overconfident about a meta that resets every Worlds (the newest patch counts x8). Most deaths
+per game is a ranking of high-volume champions (the real leader is an engage support, not a lucky 5-game
+champion), and highest win rate is a flat lottery: no signal beat a uniform guess in backtests. The shortest-game winner is each
+team's share of the event's wins (the pool model gave the real winner 0% in 2022-25). Teemo and the Finals
+MVP role are base rates; 15-kill games use the observed Worlds rate. Every calibration constant in the
+toml cites the backtest that set it -- refit with `--backtest` rather than editing by hand. Two data traps:
+league `WLDs` also holds the LCK/LPL regional qualifiers (use `worlds_window`), and the Play-In counts
+toward the stats by default because the rules are silent (`--no-playin` to check what flips).
 
 ## Validation
 
