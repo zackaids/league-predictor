@@ -41,6 +41,7 @@ python3 -m venv .venv
 # Worlds odds (the pipeline runs this; standalone for debugging)
 .venv/bin/python swiss.py                       # Swiss + knockout odds from worlds_swiss.toml
 .venv/bin/python bracket.py                     # Play-In field + odds
+.venv/bin/python lolesports.py                  # after a draw: prints the TOML to paste (read-only)
 
 # Crystal Ball (the Worlds Pick'Em bonus questions)
 .venv/bin/python crystal_ball.py                # answers + expected points -> data/processed/{year}_crystal_ball.csv
@@ -167,8 +168,14 @@ Results come from the series log (`WLDs`, inside the stage's dates); a Bo3 at 1-
 is not a result. Results Oracle's Elixir has not published yet are inferred from
 the next round's draw or the quarterfinal draw, and `[results.swiss]` /
 `[results.knockout]` override both. A series between two Swiss teams that no draw
-explains is reported in the page notes, not dropped. League code `WLDs` also holds
-September LPL qualifier series, which is why every window is a date range.
+explains is reported in the page notes, not dropped.
+League code `WLDs` also holds September LPL qualifier series, which is why every window is a date range.
+`lolesports.py` reads the schedule behind lolesports.com (public API, fresher than
+OE for results), compares it with both configs and the series log, and prints the
+TOML for any new Play-In result, Swiss draw, result or quarterfinal draw, plus any
+`CONFLICT` with what is already entered (exit 1). It never writes the configs, and
+the quarterfinal pairs come back in start-time order, so confirm QF1-QF4 against
+the official bracket.
 
 **What-ifs.** The Worlds page keeps picks, hypothetical draws and a hypothetical
 quarterfinal draw in session state (`swiss.new_whatif`). `swiss.state` layers them
