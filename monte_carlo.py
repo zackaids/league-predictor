@@ -114,6 +114,7 @@ class Odds:
     occupancy: dict = dc_field(default_factory=dict)   # round -> (w, l) -> [T]
     meet: dict = dc_field(default_factory=dict)        # round -> [T, T] P(a plays b)
     ko_slot: np.ndarray | None = None                  # [T, 7] P(team plays in each KO_SERIES)
+    runs: np.ndarray | None = None  # [n, T] int8 final record per run (index into RECORDS, -1 = not in the Swiss); keep_runs only
 
     @property
     def fallback(self) -> int:
@@ -220,7 +221,7 @@ def _force(a_wins: np.ndarray, ta: np.ndarray, tb: np.ndarray, winner: int) -> n
 # ------------------------------------------------------------------ engine
 
 def _execute(field: Field, known: Known, n: int, seed: int | None,
-             collect: bool = False) -> tuple[Odds, Trace | None]:
+             collect: bool = False, keep_runs: bool = False) -> tuple[Odds, Trace | None]:
     T = len(field.teams)
     ix = field.index
     streams = [np.random.default_rng(s) for s in np.random.SeedSequence(seed).spawn(14)]
@@ -299,8 +300,13 @@ def _execute(field: Field, known: Known, n: int, seed: int | None,
 
     # ---- final records
     record = np.zeros((T, 6))
+    runs = np.full((n, T), -1, dtype=np.int8) if keep_runs else None
     for i, (w, l) in enumerate(RECORDS):
-        record[:, i] = np.bincount(slot_team[(wins == w) & (losses == l)], minlength=T)
+        hit = (wins == w) & (losses == l)
+        record[:, i] = np.bincount(slot_team[hit], minlength=T)
+        if keep_runs:
+            r_, s_ = np.nonzero(hit)
+            runs[r_, slot_team[r_, s_]] = i
 
     # ---- quarterfinal draw
     if known.qf is not None:
@@ -359,6 +365,7 @@ def _execute(field: Field, known: Known, n: int, seed: int | None,
         occupancy={r: {k: v / n for k, v in d.items()} for r, d in occupancy.items()},
         meet={r: m_ / n for r, m_ in meet.items()},
         ko_slot=ko_slot / n,
+        runs=runs,
     )
     trace = None
     if collect:
@@ -374,9 +381,13 @@ def _execute(field: Field, known: Known, n: int, seed: int | None,
 # ------------------------------------------------------------------ public API
 
 def simulate(field: Field, known: Known | None = None, n: int = 20000,
-             seed: int | None = 0) -> Odds:
-    """Odds for every team, given what is already `known`."""
-    return _execute(field, known or Known(), n, seed)[0]
+             seed: int | None = 0, keep_runs: bool = False) -> Odds:
+    """Odds for every team, given what is already `known`.
+
+    `keep_runs` also returns every run's final record (`Odds.runs`), for callers
+    that need the joint outcomes rather than the per-team marginals.
+    """
+    return _execute(field, known or Known(), n, seed, keep_runs=keep_runs)[0]
 
 
 def run_trace(field: Field, known: Known | None = None, seed: int | None = None) -> Trace:

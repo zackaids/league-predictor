@@ -1,0 +1,25 @@
+# Worlds 2026 Swiss Pick'Em: what the bracket asks for, so pickem.py can pick the
+# teams most likely to be right. Edit this when the format changes -- nothing in
+# pickem.py is specific to this year's counts.
+#
+# A slot is a record label ("3-0", "0-3", ...) or "advance" (any record in
+# `rules.advance`). `slots` is how many teams to pick for each; `points` is what
+# each correct pick pays. This year every pick is worth the same.
+[slots]
+"3-0"   = 1
+"3-1"   = 1
+"3-2"   = 1
+advance = 5
+
+[points]
+"3-0"   = 1
+"3-1"   = 1
+"3-2"   = 1
+advance = 1
+
+[rules]
+# One team fills at most one slot, so 8 picks are 8 different teams. Set false if
+# the same team may be picked for two slots (e.g. both 3-0 and advance).
+distinct = true
+# Records that satisfy an "advance" pick.
+advance = ["3-0", "3-1", "3-2"]
