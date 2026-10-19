@@ -34,10 +34,18 @@ the outcome of the very event being predicted back into its own prediction.
 That is the whole reason this is a separate module rather than a flag on the
 existing scripts.
 
+4. Play-In weighting (`--playin`, separate: it reads every raw CSV). Elo credits
+   a Play-In team for beating weaker teams, and a team that wins its Play-In
+   walks into the main stage with a higher rating. Is that credit predictive?
+   For each Worlds with a Play-In, rate every team as of the main stage's first
+   game with Play-In games counting 0x / 0.25x / 0.5x / 1x / 1.5x as much as a
+   normal game, and score the main-stage games that involve a Play-In qualifier.
+
 Run:
     python backtest.py                # everything
     python backtest.py --quick        # skip the historical cross-region test
     python backtest.py --sweep-k      # K-factor sweep
+    python backtest.py --playin       # does Play-In form predict the main stage?
 """
 from __future__ import annotations
 
@@ -331,6 +339,138 @@ def cross_region(k: float = elo.K_DEFAULT, events=("MSI", "WLDs"),
     return df
 
 
+# ---------------------------------------------------------------- test 4: Play-In weighting
+
+# (Play-In first day, Play-In last day, main stage's first day), read off Oracle's
+# Elixir's daily game counts. The data has no stage column, and league `WLDs` also
+# holds each year's LPL/LCK regional qualifiers, so the windows are explicit.
+# 2015-16 have no Play-In rows and 2025 had no Play-In.
+PLAYIN_WINDOWS = {
+    2017: ("2017-09-20", "2017-10-01", "2017-10-04"),
+    2018: ("2018-09-28", "2018-10-08", "2018-10-09"),
+    2019: ("2019-10-01", "2019-10-09", "2019-10-11"),
+    2020: ("2020-09-24", "2020-10-01", "2020-10-02"),
+    2021: ("2021-10-04", "2021-10-10", "2021-10-10"),
+    2022: ("2022-09-28", "2022-10-05", "2022-10-06"),
+    2023: ("2023-10-08", "2023-10-16", "2023-10-17"),
+    2024: ("2024-09-24", "2024-09-30", "2024-10-02"),
+}
+PLAYIN_WEIGHTS = (0.0, 0.25, 0.5, 1.0, 1.5)
+
+
+def _rate_weighted(matches: pd.DataFrame, kmul: np.ndarray, k: float) -> tuple[dict, dict]:
+    """Elo over `matches` where game i moves ratings by k * kmul[i]."""
+    rating: dict[str, float] = {}
+    played: dict[str, int] = {}
+    for m, mul in zip(matches.itertuples(index=False), kmul):
+        rb, rr = rating.get(m.blue, BASE), rating.get(m.red, BASE)
+        p = elo.expected(rb, rr)
+        s = 1.0 if m.blue_won else 0.0
+        rating[m.blue] = rb + k * mul * (s - p)
+        rating[m.red] = rr - k * mul * (s - p)
+        played[m.blue] = played.get(m.blue, 0) + 1
+        played[m.red] = played.get(m.red, 0) + 1
+    return rating, played
+
+
+def playin(k: float = elo.K_DEFAULT, weights=PLAYIN_WEIGHTS, min_games: int = 10,
+           n_boot: int = 4000, seed: int = 0) -> pd.DataFrame:
+    """Does a team's Play-In form predict its main-stage games?
+
+    Point-in-time: ratings use only games before the main stage; the region prior
+    only games before the Play-In, so it is the same for every weight and the
+    weight is the only thing that varies.
+    """
+    print("\nLoading international games (all years)...")
+    intl = region_strength.load_intl_games()
+    intl["date"] = pd.to_datetime(intl["date"])
+
+    rows = []
+    for year, (pi0, pi1, main0) in PLAYIN_WINDOWS.items():
+        pi0, pi1, main0 = (pd.Timestamp(x) for x in (pi0, pi1, main0))
+        t = _year_team_rows(year)
+        regions = region_strength.home_regions(t)
+        worlds = t["league"] == "WLDs"
+        pi_games = set(t.loc[worlds & (t["date"] >= pi0) & (t["date"] < pi1 + pd.Timedelta(days=1)), "gameid"])
+        main = t[worlds & (t["date"] >= main0)]
+        qualifiers = set(t[t["gameid"].isin(pi_games)]["team"]) & set(main["team"])
+        if not qualifiers:
+            continue
+
+        train = orient(t[t["date"] < main0])
+        is_pi = train["gameid"].isin(pi_games).to_numpy()
+        prior = region_strength.region_elo(intl[intl["date"] < pi0]).set_index("region")["region_elo"]
+        test = orient(main)
+        test = test[test["blue"].isin(qualifiers) | test["red"].isin(qualifiers)]
+
+        for w in weights:
+            rating, played = _rate_weighted(train, np.where(is_pi, w, 1.0), k)
+            pool = defaultdict(list)
+            for team, r in rating.items():
+                reg = regions.get(team)
+                if reg and played.get(team, 0) >= min_games:
+                    pool[reg].append(r)
+            region_mean = {reg: float(np.mean(v)) for reg, v in pool.items()}
+            for m in test.itertuples(index=False):
+                rb, rr = rating.get(m.blue), rating.get(m.red)
+                gb, gr = regions.get(m.blue), regions.get(m.red)
+                if rb is None or rr is None or not gb or not gr:
+                    continue
+                if min(played.get(m.blue, 0), played.get(m.red, 0)) < min_games:
+                    continue
+                cb = prior.get(gb, BASE) + (rb - region_mean.get(gb, BASE))
+                cr = prior.get(gr, BASE) + (rr - region_mean.get(gr, BASE))
+                rows.append({"year": year, "series": (year, frozenset((m.blue, m.red))), "w": w,
+                             "gameid": m.gameid, "y": int(m.blue_won),
+                             "p": float(shrink_prob(cb - cr, calibrate.RATING_SCALE))})
+        print(f"  {year}: {len(qualifiers)} Play-In qualifiers, {len(test)} main-stage games with one")
+
+    df = pd.DataFrame(rows)
+    if df.empty:
+        print("No evaluable Play-In events found.")
+        return df
+    p = np.clip(df["p"].to_numpy(), EPS, 1 - EPS)
+    df["loss"] = -(df["y"] * np.log(p) + (1 - df["y"]) * np.log(1 - p))
+
+    print("\n=== TEST 4: how much should Play-In games count? (main-stage games with a Play-In qualifier) ===")
+    wide = df.pivot_table(index=["gameid", "series", "year"], columns="w", values="loss")
+    wide = wide.dropna()
+    n = len(wide)
+    print(f"  {n} games in {wide.index.get_level_values('series').nunique()} series, "
+          f"{wide.index.get_level_values('year').nunique()} Worlds\n")
+    base = 1.0 if 1.0 in weights else weights[0]
+    rng = np.random.default_rng(seed)
+    series = wide.index.get_level_values("series")
+    codes = pd.factorize(series)[0]
+    by_series = [np.flatnonzero(codes == c) for c in range(codes.max() + 1)]
+    boot = np.empty((n_boot, len(weights)))
+    arr = wide[list(weights)].to_numpy()
+    for b in range(n_boot):
+        pick = np.concatenate([by_series[i] for i in rng.integers(0, len(by_series), len(by_series))])
+        boot[b] = arr[pick].mean(axis=0)
+    out = []
+    bi = list(weights).index(base)
+    for j, w in enumerate(weights):
+        d = boot[:, j] - boot[:, bi]
+        out.append({"weight": w, "log_loss": arr[:, j].mean(),
+                    "vs_1x": arr[:, j].mean() - arr[:, bi].mean(),
+                    "ci_lo": np.percentile(d, 2.5), "ci_hi": np.percentile(d, 97.5)})
+    table = pd.DataFrame(out)
+    print(table.round(4).to_string(index=False))
+    print("\n  weight = how much a Play-In game moves ratings relative to a normal game (1.0 = shipped).")
+    print("  vs_1x < 0 means better than the shipped rating; the interval resamples whole series.")
+    best = table.loc[table["log_loss"].idxmin()]
+    significant = best["ci_hi"] < 0
+    print(f"  -> lowest log loss at {best['weight']:g}x; "
+          + ("that beats the shipped weighting by more than series-level noise."
+             if significant else "the gap to the shipped weighting is within series-level noise."))
+    print("\n  per-Worlds log loss, 0x vs 1x:")
+    per = df[df["w"].isin([0.0, base])].groupby(["year", "w"])["loss"].mean().unstack()
+    per["n_games"] = df[df["w"] == base].groupby("year").size()
+    print(per.round(4).to_string())
+    return df
+
+
 # ---------------------------------------------------------------- sweep
 
 def sweep_k(year: int = CURRENT_YEAR, ks=(10, 16, 20, 24, 30, 40, 50),
@@ -419,9 +559,15 @@ def main() -> None:
     ap.add_argument("--quick", action="store_true",
                     help="skip the historical cross-region test (reads every raw CSV)")
     ap.add_argument("--sweep-k", action="store_true")
+    ap.add_argument("--playin", action="store_true",
+                    help="test 4 only: does Play-In form predict the main stage? (reads every raw CSV)")
     ap.add_argument("--report", action="store_true",
                     help="write data/processed/backtest_report.json for the app")
     args = ap.parse_args()
+
+    if args.playin:
+        playin(args.k)
+        return
 
     if args.report:
         write_report(args.year, args.k, args.burn_in, quick=args.quick)
