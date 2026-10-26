@@ -702,8 +702,17 @@ def load_series(year: int) -> pd.DataFrame:
 
 def write_outputs(year: int = CURRENT_YEAR, n: int = 20000, seed: int | None = 0) -> pd.DataFrame:
     """Write the Swiss field and the title-odds table. Returns the table."""
+    import lolesports      # here, not at the top: lolesports imports this module
     cfg = load_config()
-    ev = resolve(cfg, load_series(year), year)
+    bcfg = bracket.load_config()
+    events, src = lolesports.schedule(year, str(bcfg["start"]))
+    live = None
+    if events:
+        try:
+            live = lolesports.live_facts(cfg, bcfg, events)
+        except ValueError as exc:
+            src += f"; could not be read: {exc}"
+    ev = resolve_live(cfg, load_series(year), year, live=live)
     paths.ensure_dirs()
     ev.rows.to_csv(paths.processed(year, "swiss_field", "csv"), index=False)
 
@@ -713,6 +722,7 @@ def write_outputs(year: int = CURRENT_YEAR, n: int = 20000, seed: int | None = 0
 
     k = ev.known
     print(f"=== WORLDS {year} -- SWISS + KNOCKOUT ODDS ({n:,} sims) ===")
+    print(f"Schedule: {src}")
     print(f"Play-In winner: {k.playin_winner or 'undecided (sampled from the Play-In odds)'}; "
           f"rounds drawn: {sorted(k.draws) or 'none'}; quarterfinals drawn: {bool(k.qf)}; "
           f"knockout results: {len(k.ko)}")

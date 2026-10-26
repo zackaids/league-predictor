@@ -25,6 +25,7 @@ import board
 import bracket
 import elo
 import history
+import lolesports
 import monte_carlo as mc
 import paths
 import pickem
@@ -443,17 +444,45 @@ def load_swiss_rows(year: int = YEAR) -> pd.DataFrame:
     return pd.read_csv(path) if path.exists() else pd.DataFrame()
 
 
+SCHEDULE_TTL = 300      # one read of lolesports.com serves every visitor for 5 minutes
+
+
+@st.cache_data(ttl=SCHEDULE_TTL, show_spinner=False)
+def fetch_schedule(since: str):
+    """(events, when it was read) -- or (None, the error): the page must render without it."""
+    try:
+        return lolesports.fetch_events(since, timeout=5), f"{dt.datetime.now(dt.timezone.utc):%H:%M} UTC"
+    except Exception as exc:
+        return None, repr(exc)
+
+
 def load_event():
-    """The confirmed facts, or None when the field has not been built yet.
+    """(the confirmed facts, a status line), or (None, "") when the field has not been built yet.
 
     Resolved from the committed field CSV so an upstream team rename cannot break
     the page between pipeline runs; the config is tiny and read uncached, so an
-    edit shows on the next rerun.
+    edit shows on the next rerun. Draws and results the config lacks come from the
+    lolesports.com schedule, else the snapshot the last pipeline run saved.
     """
     rows = load_swiss_rows()
     if rows.empty:
-        return None
-    return swiss.resolve(swiss.load_config(), load_series(), YEAR, rows=rows)
+        return None, ""
+    cfg, bcfg = swiss.load_config(), bracket.load_config()
+    events, stamp = fetch_schedule(str(bcfg["start"]))
+    if events is not None:
+        status = f"Draws and results update from lolesports.com (last checked {stamp})."
+    else:
+        events = lolesports.load_snapshot(YEAR)
+        status = ("lolesports.com could not be reached; draws and results are from the last pipeline run."
+                  if events is not None else
+                  "lolesports.com could not be reached; draws are from worlds_swiss.toml only.")
+    live = None
+    if events is not None:
+        try:
+            live = lolesports.live_facts(cfg, bcfg, events)
+        except ValueError as exc:
+            status = f"The lolesports.com schedule could not be read ({exc}); draws are from worlds_swiss.toml only."
+    return swiss.resolve_live(cfg, load_series(), YEAR, rows=rows, live=live), status
 
 
 @st.cache_data(show_spinner=False)
@@ -734,10 +763,11 @@ def page_worlds() -> None:
     st.header(f"Worlds {YEAR}")
     if not swiss.is_current(YEAR):
         return projected_odds()
-    event = load_event()
+    event, status = load_event()
     if event is None:
         st.info("No Worlds field yet. Run `python pipeline.py`.")
         return
+    st.caption(status)
 
     stt = swiss.state(event, worlds_whatif())
     st.session_state["worlds_whatif"] = stt.whatif       # stale picks are dropped

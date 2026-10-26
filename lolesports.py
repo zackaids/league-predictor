@@ -25,9 +25,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
 
 import bracket
 import monte_carlo as mc
+import paths
 import swiss
 from paths import CURRENT_YEAR
 
@@ -306,6 +308,40 @@ def live_facts(cfg: dict, bcfg: dict, events: list[dict]) -> swiss.Live:
         if m.block in KO_BLOCKS and m.done:
             live.ko[frozenset(m.teams)] = {"winner": m.winner, "score": m.score}
     return live
+
+
+# ------------------------------------------------------------------ snapshot
+
+def snapshot_path(year: int) -> Path:
+    return paths.processed(year, "worlds_schedule", "json")
+
+
+def save_snapshot(year: int, events: list[dict], since: str) -> None:
+    """Keep the stage events from `since` on, so the app has a schedule when the API is down."""
+    kept = sorted((e for e in events if e.get("blockName") in BLOCKS and e["startTime"] >= since),
+                  key=lambda e: e["startTime"])
+    path = snapshot_path(year)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(kept, indent=1, sort_keys=True, ensure_ascii=False))
+    tmp.replace(path)
+
+
+def load_snapshot(year: int) -> list[dict] | None:
+    path = snapshot_path(year)
+    return json.loads(path.read_text()) if path.exists() else None
+
+
+def schedule(year: int, since: str) -> tuple[list[dict] | None, str]:
+    """The schedule and where it came from: the API (saved as the snapshot), else the snapshot, else None."""
+    try:
+        events = fetch_events(since)
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as exc:
+        events = load_snapshot(year)
+        if events is None:
+            return None, f"lolesports.com unreachable ({exc!r}); no snapshot, config only"
+        return events, f"lolesports.com unreachable ({exc!r}); using the last snapshot"
+    save_snapshot(year, events, since)
+    return events, "live from lolesports.com (snapshot saved)"
 
 
 # ------------------------------------------------------------------ main
