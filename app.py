@@ -480,7 +480,7 @@ def load_event():
     if events is not None:
         try:
             live = lolesports.live_facts(cfg, bcfg, events)
-        except ValueError as exc:
+        except Exception as exc:     # a malformed event is a KeyError/TypeError, not a ValueError
             status = f"The lolesports.com schedule could not be read ({exc}); draws are from worlds_swiss.toml only."
     return swiss.resolve_live(cfg, load_series(), YEAR, rows=rows, live=live), status
 

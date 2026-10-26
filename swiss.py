@@ -448,7 +448,7 @@ def resolve_live(cfg: dict, series: pd.DataFrame, year: int = CURRENT_YEAR,
         ev = resolve(merge_live(cfg, live, mc.ROUNDS, True), series, year, rows)
         ev.notes = conflicts + ev.notes
         return ev
-    except ValueError as exc:
+    except (ValueError, KeyError) as exc:
         full_error = exc
     good = resolve(cfg, series, year, rows)    # a broken config fails here, as it does without a schedule
     ignored: list[str] = []
@@ -457,7 +457,7 @@ def resolve_live(cfg: dict, series: pd.DataFrame, year: int = CURRENT_YEAR,
     for k in range(first, top + 1):
         try:
             good = resolve(merge_live(cfg, live, k, False), series, year, rows)
-        except ValueError as exc:
+        except (ValueError, KeyError) as exc:
             ignored.append(f"Ignored the lolesports.com results: {exc}" if k == first else
                            f"Ignored the lolesports.com draw for round {k} and later: {exc}")
             break
@@ -765,15 +765,15 @@ def write_outputs(year: int = CURRENT_YEAR, n: int = 20000, seed: int | None = 0
     import lolesports      # here, not at the top: lolesports imports this module
     cfg = load_config()
     bcfg = bracket.load_config()
+    paths.ensure_dirs()
     events, src = lolesports.schedule(year, str(bcfg["start"]))
     live = None
     if events:
         try:
             live = lolesports.live_facts(cfg, bcfg, events)
-        except ValueError as exc:
+        except Exception as exc:     # a malformed event is a KeyError/TypeError, not a ValueError
             src += f"; could not be read: {exc}"
     ev = resolve_live(cfg, load_series(year), year, live=live)
-    paths.ensure_dirs()
     ev.rows.to_csv(paths.processed(year, "swiss_field", "csv"), index=False)
 
     odds = mc.simulate(ev.field, ev.known, n, seed)

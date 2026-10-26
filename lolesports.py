@@ -89,10 +89,17 @@ class Match:
     teams: tuple          # config names; None for an undrawn slot
     wins: tuple
     done: bool
+    outcomes: tuple = (None, None)    # each team's result.outcome, for a match gameWins cannot decide
 
     @property
     def winner(self) -> str | None:
-        return self.teams[0] if self.wins[0] > self.wins[1] else self.teams[1] if self.done else None
+        if self.wins[0] > self.wins[1]:
+            return self.teams[0]
+        if not self.done:
+            return None
+        if self.wins[1] > self.wins[0] or self.outcomes[1] == "win":
+            return self.teams[1]
+        return self.teams[0] if self.outcomes[0] == "win" else None
 
     @property
     def score(self) -> str:
@@ -118,7 +125,7 @@ def parse(events: list[dict], since: str, names: dict[str, str]) -> list[Match]:
             wins.append(res.get("gameWins") or 0)
             outcomes.append(res.get("outcome"))
         done = e["state"] == "completed" and None not in teams and "win" in outcomes
-        out.append(Match(e["startTime"], e["blockName"], tuple(teams), tuple(wins), done))
+        out.append(Match(e["startTime"], e["blockName"], tuple(teams), tuple(wins), done, tuple(outcomes)))
     return out
 
 
@@ -335,19 +342,26 @@ def save_snapshot(year: int, events: list[dict], since: str) -> None:
 
 def load_snapshot(year: int) -> list[dict] | None:
     path = snapshot_path(year)
-    return json.loads(path.read_text()) if path.exists() else None
+    try:
+        events = json.loads(path.read_text())
+    except (OSError, ValueError):     # missing, unreadable or conflict-marked: no snapshot
+        return None
+    return events if isinstance(events, list) else None
 
 
 def schedule(year: int, since: str) -> tuple[list[dict] | None, str]:
     """The schedule and where it came from: the API (saved as the snapshot), else the snapshot, else None."""
     try:
         events = fetch_events(since)
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, KeyError) as exc:
+    except Exception as exc:     # a dropped connection or a changed response shape must not escape
         events = load_snapshot(year)
         if events is None:
             return None, f"lolesports.com unreachable ({exc!r}); no snapshot, config only"
         return events, f"lolesports.com unreachable ({exc!r}); using the last snapshot"
-    save_snapshot(year, events, since)
+    try:
+        save_snapshot(year, events, since)
+    except OSError as exc:
+        return events, f"live from lolesports.com (snapshot not saved: {exc!r})"
     return events, "live from lolesports.com (snapshot saved)"
 
 
