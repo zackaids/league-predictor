@@ -650,6 +650,66 @@ def draw_quarterfinals(stt: State, wi: dict, rng: np.random.Generator) -> None:
                 "premise": premise}
 
 
+def met_before(known: mc.Known, r: int) -> set[frozenset]:
+    """The pairs already drawn in rounds before `r`."""
+    return {frozenset(p) for k, ps in known.draws.items() if k < r for p in ps}
+
+
+def _swiss_teams(stt: State) -> list[str]:
+    return stt.field.teams[:mc.DIRECT] + ([stt.known.playin_winner] if stt.known.playin_winner else [])
+
+
+def draw_groups(stt: State, r: int) -> list[tuple[tuple[int, int], list[str]]]:
+    """Round `r`'s record groups, each with its teams from the highest rated down."""
+    rec = records(stt.known, r - 1)
+    rating = dict(zip(stt.field.teams, stt.field.rating))
+    teams = sorted(_swiss_teams(stt), key=lambda t: -rating[t])
+    return [((w, l), [t for t in teams if rec.get(t, (0, 0)) == (w, l)])
+            for w, l, _ in mc._layout(r)]
+
+
+def set_draw(stt: State, wi: dict, r: int, pairs: list[tuple[str, str]]) -> None:
+    """Enter Swiss round `r`'s draw by hand, under the same rules as a real one."""
+    if r in stt.known.draws and r not in stt.hypo_draws:
+        raise ValueError(f"round {r} is already drawn")
+    before = _known_before(stt.known, r)
+    premise = _premise(before, r, before.playin_winner)
+    if premise is None:
+        raise ValueError(f"round {r} cannot be drawn until the round before it is decided")
+    rec = {t: records(before).get(t, (0, 0)) for t in _swiss_teams(stt)}
+    seen: set[str] = set()
+    for a, b in pairs:
+        for t in (a, b):
+            if t not in rec:
+                raise ValueError(f"{t!r} is not in the Swiss stage")
+            if 3 in rec[t]:
+                raise ValueError(f"{t} has finished the Swiss stage")
+            if t in seen:
+                raise ValueError(f"{t} is drawn twice")
+            seen.add(t)
+        if rec[a] != rec[b]:
+            raise ValueError(f"{a} ({rec[a][0]}-{rec[a][1]}) and {b} ({rec[b][0]}-{rec[b][1]}) "
+                             f"are not on the same record")
+    field = stt.field
+    tier = dict(zip(field.teams[:mc.DIRECT], field.tier)) | {before.playin_winner: 4}
+    league = dict(zip(field.teams, field.league))
+    _check_round(r, pairs, {t: rec[t] for t in seen}, rec, met_before(before, r), tier, league,
+                 field.league_rule)
+    wi["draws"][r] = {"pairs": [list(p) for p in pairs], "premise": premise}
+
+
+def set_quarterfinals(stt: State, wi: dict, pairs: list[tuple[str, str]]) -> None:
+    """Enter the quarterfinal draw by hand, under the same rules as a real one."""
+    if stt.known.qf is not None and not stt.hypo_qf:
+        raise ValueError("the quarterfinals are already drawn")
+    before = replace(stt.known, qf=None, ko={})
+    premise = _qf_premise(before)
+    if premise is None:
+        raise ValueError("the quarterfinals cannot be drawn until the Swiss stage is decided")
+    check_quarterfinals(pairs, records(before))
+    wi["qf"] = {"pairs": [list(p) for p in pairs], "premise": premise}
+
+
 def play_out(event: Event, whatif: dict | None, rng: np.random.Generator) -> dict:
     """Fill every open decision once, weighted by the model: Play-In series, draws,
     Swiss results, the quarterfinal draw and the knockout. Real facts stay as they
