@@ -218,6 +218,25 @@ def _won(team: str, r: int, labels: dict, qf_teams: set | None) -> bool | None:
     return None
 
 
+def check_quarterfinals(qf: list[tuple[str, str]], rec: dict[str, tuple[int, int]]) -> None:
+    """Raise ValueError unless `qf` is a legal quarterfinal draw for the Swiss records `rec`."""
+    flat = [t for p in qf for t in p]
+    if len(qf) != 4 or any(len(p) != 2 for p in qf) or len(set(flat)) != 8:
+        raise ValueError("the quarterfinals must be 4 pairs of 8 distinct teams")
+    qf_teams = set(flat)
+    wins3 = {t for t, (w, _) in rec.items() if w == 3}
+    if wins3 != qf_teams:
+        raise ValueError(f"the quarterfinal teams {sorted(qf_teams)} are not the eight teams on 3 wins")
+    half = {t: i // 2 for i, p in enumerate(qf) for t in p}
+    zero = [t for t in wins3 if rec[t][1] == 0]
+    if len({half[t] for t in zero}) != 2:
+        raise ValueError("the 3-0 teams must be on opposite halves of the bracket")
+    for t in zero:
+        opp = next(set(p) - {t} for p in qf if t in p).pop()
+        if rec[opp][1] != 2:
+            raise ValueError(f"3-0 team {t} must face a 3-2 team, not {opp}")
+
+
 def resolve(cfg: dict, series: pd.DataFrame, year: int = CURRENT_YEAR,
             rows: pd.DataFrame | None = None) -> Event:
     """Everything that has really happened, from the series log plus the config.
@@ -282,6 +301,7 @@ def resolve(cfg: dict, series: pd.DataFrame, year: int = CURRENT_YEAR,
             if found is not None:
                 used.add(found.series_id)
             manual = cfg["results_swiss"].get(frozenset((a, b)))
+            sched = cfg.get("results_live_swiss", {}).get(frozenset((a, b)))
             if manual:
                 if manual["winner"] not in (a, b):
                     raise ValueError(f"[results.swiss] {a} v {b}: {manual['winner']!r} is not in the match")
@@ -291,6 +311,11 @@ def resolve(cfg: dict, series: pd.DataFrame, year: int = CURRENT_YEAR,
                 res = {"winner": display[found.team_a if a_won else found.team_b],
                        "score": f"{max(found.wins_a, found.wins_b)}-{min(found.wins_a, found.wins_b)}",
                        "source": "auto"}
+                if sched and sched["winner"] != res["winner"]:
+                    notes.append(f"Round {r}: {a} v {b} -- Oracle's Elixir says {res['winner']} won, "
+                                 f"lolesports.com says {sched['winner']}; using Oracle's Elixir.")
+            elif sched:
+                res = {**sched, "source": "live"}
             else:
                 res = None
                 for x in (a, b):
@@ -316,17 +341,7 @@ def resolve(cfg: dict, series: pd.DataFrame, year: int = CURRENT_YEAR,
         if winner is None or len(draws) < mc.ROUNDS:
             raise ValueError("quarterfinals are drawn but the Swiss rounds are not all in the config")
         if rec is not None:
-            wins3 = {t for t, (w, _) in rec.items() if w == 3}
-            if wins3 != qf_teams:
-                raise ValueError(f"the quarterfinal teams {sorted(qf_teams)} are not the eight teams on 3 wins")
-            half = {t: i // 2 for i, p in enumerate(qf) for t in p}
-            zero = [t for t in wins3 if rec[t][1] == 0]
-            if len({half[t] for t in zero}) != 2:
-                raise ValueError("the 3-0 teams must be on opposite halves of the bracket")
-            for t in zero:
-                opp = next(set(p) - {t} for p in qf if t in p).pop()
-                if rec[opp][1] != 2:
-                    raise ValueError(f"3-0 team {t} must face a 3-2 team, not {opp}")
+            check_quarterfinals(qf, rec)
         known.qf = list(qf)
 
         # ---- knockout results
@@ -340,6 +355,7 @@ def resolve(cfg: dict, series: pd.DataFrame, year: int = CURRENT_YEAR,
                 a, b = (won.get(k) for k in feeds[key])
                 pair = (a, b) if a and b else None
             manual = cfg["results_ko"].get(key)
+            sched = cfg.get("results_live_ko", {}).get(frozenset(pair)) if pair else None
             if pair is None:
                 if manual:
                     raise ValueError(f"[results.knockout] {key} is set but its teams are not decided yet")
@@ -356,6 +372,11 @@ def resolve(cfg: dict, series: pd.DataFrame, year: int = CURRENT_YEAR,
                 res = {"winner": display[found.team_a if a_won else found.team_b],
                        "score": f"{max(found.wins_a, found.wins_b)}-{min(found.wins_a, found.wins_b)}",
                        "source": "auto"}
+                if sched and sched["winner"] != res["winner"]:
+                    notes.append(f"{key}: {pair[0]} v {pair[1]} -- Oracle's Elixir says {res['winner']} won, "
+                                 f"lolesports.com says {sched['winner']}; using Oracle's Elixir.")
+            elif sched:
+                res = {**sched, "source": "live"}
             else:
                 info["ko"][key] = {"pair": pair}
                 continue
@@ -371,6 +392,79 @@ def resolve(cfg: dict, series: pd.DataFrame, year: int = CURRENT_YEAR,
             notes.append(f"{r_.date:%b %d}: {a} v {b} ({r_.wins_a}-{r_.wins_b}) matches no drawn pair -- "
                          f"add that round's draw to {CONFIG.name}.")
     return Event(cfg=cfg, bcfg=bcfg, rows=rows, field=field, known=known, info=info, notes=notes)
+
+
+# ------------------------------------------------------------------ live schedule
+
+def merge_live(cfg: dict, live: Live, rounds: int, qf: bool) -> dict:
+    """A copy of `cfg` with the schedule's facts layered underneath it.
+
+    The config's own draws, quarterfinals and results are never replaced: the
+    schedule only extends the draws past the config's last round (up to `rounds`),
+    supplies the quarterfinal draw when the config has none (and `qf`), and adds
+    results that `resolve` consults after the series log.
+    """
+    draws = {r: list(p) for r, p in cfg["draws"].items()}
+    labels = {r: dict(l) for r, l in cfg["labels"].items()}
+    r = len(draws) + 1
+    while r <= rounds and r in live.draws:
+        draws[r], labels[r] = list(live.draws[r]), dict(live.labels[r])
+        r += 1
+    out = {**cfg, "draws": draws, "labels": labels,
+           "results_live_swiss": dict(live.results), "results_live_ko": dict(live.ko)}
+    if qf and cfg["quarterfinals"] is None and live.qf is not None and len(draws) >= mc.ROUNDS:
+        out["quarterfinals"] = list(live.qf)
+    return out
+
+
+def live_conflicts(cfg: dict, live: Live) -> list[str]:
+    """Where the config and the schedule disagree about a draw; the config wins."""
+    notes = [f"Round {r}: the draw in {CONFIG.name} differs from lolesports.com; using {CONFIG.name}."
+             for r in sorted(cfg["draws"]) if r in live.draws
+             and {frozenset(p) for p in cfg["draws"][r]} != {frozenset(p) for p in live.draws[r]}]
+    if cfg["quarterfinals"] is not None and live.qf is not None \
+            and {frozenset(p) for p in cfg["quarterfinals"]} != {frozenset(p) for p in live.qf}:
+        notes.append(f"Quarterfinals: the draw in {CONFIG.name} differs from lolesports.com; "
+                     f"using {CONFIG.name}.")
+    return notes
+
+
+def resolve_live(cfg: dict, series: pd.DataFrame, year: int = CURRENT_YEAR,
+                 rows: pd.DataFrame | None = None, live: Live | None = None) -> Event:
+    """`resolve`, with the schedule's draws and results filled in under the config.
+
+    A schedule fact that does not validate (a rematch, a record that contradicts the
+    results) is dropped with a note rather than raised: the config alone must still
+    resolve, and the schedule only ever adds to it. The draws are tried a round at a
+    time, so one bad round costs only itself and what follows.
+    """
+    if live is None:
+        return resolve(cfg, series, year, rows)
+    if rows is None:
+        rows = field_rows(cfg, bracket.load_config(),
+                          pd.read_parquet(paths.processed(year, "calibrated_ratings")))
+    conflicts = live_conflicts(cfg, live)
+    try:
+        ev = resolve(merge_live(cfg, live, mc.ROUNDS, True), series, year, rows)
+        ev.notes = conflicts + ev.notes
+        return ev
+    except ValueError as exc:
+        full_error = exc
+    good = resolve(cfg, series, year, rows)    # a broken config fails here, as it does without a schedule
+    ignored: list[str] = []
+    first = len(cfg["draws"])
+    top = max(max(live.draws, default=0), first)
+    for k in range(first, top + 1):
+        try:
+            good = resolve(merge_live(cfg, live, k, False), series, year, rows)
+        except ValueError as exc:
+            ignored.append(f"Ignored the lolesports.com results: {exc}" if k == first else
+                           f"Ignored the lolesports.com draw for round {k} and later: {exc}")
+            break
+    else:
+        ignored.append(f"Ignored the lolesports.com quarterfinal draw: {full_error}")
+    good.notes = conflicts + ignored + good.notes
+    return good
 
 
 # ------------------------------------------------------------------ what-ifs

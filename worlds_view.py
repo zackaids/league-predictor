@@ -13,7 +13,7 @@ import bracket
 import monte_carlo as mc
 
 SOURCES = {"auto": "from Oracle's Elixir", "manual": "entered by hand in the config",
-           "draw": "inferred from the next draw"}
+           "draw": "inferred from the next draw", "live": "from lolesports.com"}
 
 
 @dataclass
