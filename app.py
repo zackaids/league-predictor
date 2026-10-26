@@ -25,6 +25,7 @@ import board
 import bracket
 import elo
 import history
+import lolesports
 import monte_carlo as mc
 import paths
 import pickem
@@ -443,17 +444,45 @@ def load_swiss_rows(year: int = YEAR) -> pd.DataFrame:
     return pd.read_csv(path) if path.exists() else pd.DataFrame()
 
 
+SCHEDULE_TTL = 300      # one read of lolesports.com serves every visitor for 5 minutes
+
+
+@st.cache_data(ttl=SCHEDULE_TTL, show_spinner=False)
+def fetch_schedule(since: str):
+    """(events, when it was read) -- or (None, the error): the page must render without it."""
+    try:
+        return lolesports.fetch_events(since, timeout=5), f"{dt.datetime.now(dt.timezone.utc):%H:%M} UTC"
+    except Exception as exc:
+        return None, repr(exc)
+
+
 def load_event():
-    """The confirmed facts, or None when the field has not been built yet.
+    """(the confirmed facts, a status line), or (None, "") when the field has not been built yet.
 
     Resolved from the committed field CSV so an upstream team rename cannot break
     the page between pipeline runs; the config is tiny and read uncached, so an
-    edit shows on the next rerun.
+    edit shows on the next rerun. Draws and results the config lacks come from the
+    lolesports.com schedule, else the snapshot the last pipeline run saved.
     """
     rows = load_swiss_rows()
     if rows.empty:
-        return None
-    return swiss.resolve(swiss.load_config(), load_series(), YEAR, rows=rows)
+        return None, ""
+    cfg, bcfg = swiss.load_config(), bracket.load_config()
+    events, stamp = fetch_schedule(str(bcfg["start"]))
+    if events is not None:
+        status = f"Draws and results update from lolesports.com (last checked {stamp})."
+    else:
+        events = lolesports.load_snapshot(YEAR)
+        status = ("lolesports.com could not be reached; draws and results are from the last pipeline run."
+                  if events is not None else
+                  "lolesports.com could not be reached; draws are from worlds_swiss.toml only.")
+    live = None
+    if events is not None:
+        try:
+            live = lolesports.live_facts(cfg, bcfg, events)
+        except Exception as exc:     # a malformed event is a KeyError/TypeError, not a ValueError
+            status = f"The lolesports.com schedule could not be read ({exc}); draws are from worlds_swiss.toml only."
+    return swiss.resolve_live(cfg, load_series(), YEAR, rows=rows, live=live), status
 
 
 @st.cache_data(show_spinner=False)
@@ -511,7 +540,10 @@ def worlds_callbacks(event, stt):
         swiss.toggle_pick(worlds_whatif(), p["match"], p["team"])
 
     def on_action(p: dict) -> None:
-        kind = p["id"].split(":")[1]
+        verb, kind = p["id"].split(":", 1)
+        if verb == "pick":
+            st.session_state["worlds_matchups"] = kind      # a dialog cannot open from a callback
+            return
         rng = np.random.default_rng()
         try:
             if kind == "qf":
@@ -525,6 +557,60 @@ def worlds_callbacks(event, stt):
         open_team(data_name[p["name"]])
 
     return {"on_pick": on_pick, "on_action": on_action, "on_team": on_team}
+
+
+@st.dialog("Choose the matchups", width="large")
+def matchups_dialog(stt, target: str) -> None:
+    """Enter a round's draw (`target` "2".."5") or the quarterfinal draw ("qf") by hand."""
+    boxes: list[list] = []      # each match's two chosen teams (None while empty)
+    if target == "qf":
+        st.caption("QF1 and QF2 feed Semifinal 1, QF3 and QF4 feed Semifinal 2. Each 3-0 team plays a 3-2 "
+                   "team, and the two 3-0 teams go in different halves. This is a what-if, not saved.")
+        rec = swiss.records(stt.known)
+        wins = [t for t in stt.field.teams if t in rec and rec[t][0] == 3]
+        preset = stt.known.qf if stt.hypo_qf else [(None, None)] * 4
+        for i in range(4):
+            st.markdown(f"**QF{i + 1}**")
+            cols = st.columns(2)
+            picks = [cols[j].selectbox(f"QF{i + 1} team {j + 1}", wins, key=f"mu_qf_{i}_{j}",
+                                       index=wins.index(preset[i][j]) if preset[i][j] else None,
+                                       format_func=lambda t: f"{t} ({rec[t][0]}-{rec[t][1]})",
+                                       placeholder="Choose a team", label_visibility="collapsed")
+                     for j in range(2)]
+            boxes.append(picks)
+    else:
+        r = int(target)
+        st.caption("Pair teams on the same record who have not played each other. This is a what-if: "
+                   "it changes the odds for you only and is not saved.")
+        short = dict(zip(stt.field.teams, stt.field.short))
+        met = swiss.met_before(stt.known, r)
+        hypo = stt.known.draws[r] if r in stt.hypo_draws else []
+        for (w, l), teams in swiss.draw_groups(stt, r):
+            st.markdown(f"**{w}-{l} \u00b7 Bo{3 if 2 in (w, l) else 1}**")
+            rematches = [(a, b) for i, a in enumerate(teams) for b in teams[i + 1:] if frozenset((a, b)) in met]
+            if rematches:
+                st.caption("Already played each other: " + ", ".join(f"{short[a]}\u2013{short[b]}" for a, b in rematches))
+            preset = [p for p in hypo if p[0] in teams]
+            for i in range(len(teams) // 2):
+                cols = st.columns(2)
+                boxes.append([cols[j].selectbox(f"{w}-{l} match {i + 1} team {j + 1}", teams, key=f"mu_{r}_{w}{l}_{i}_{j}",
+                                                index=teams.index(preset[i][j]) if i < len(preset) else None,
+                                                placeholder="Choose a team", label_visibility="collapsed")
+                              for j in range(2)])
+    if st.button("Apply", type="primary"):
+        if any(t is None for pair in boxes for t in pair):
+            st.error("Choose both teams in every match.")
+            return
+        pairs = [tuple(pair) for pair in boxes]
+        try:
+            if target == "qf":
+                swiss.set_quarterfinals(stt, worlds_whatif(), pairs)
+            else:
+                swiss.set_draw(stt, worlds_whatif(), int(target), pairs)
+        except ValueError as exc:
+            st.error(str(exc))
+            return
+        st.rerun()
 
 
 def worlds_playin(event, stt, cbs) -> None:
@@ -734,10 +820,11 @@ def page_worlds() -> None:
     st.header(f"Worlds {YEAR}")
     if not swiss.is_current(YEAR):
         return projected_odds()
-    event = load_event()
+    event, status = load_event()
     if event is None:
         st.info("No Worlds field yet. Run `python pipeline.py`.")
         return
+    st.caption(status)
 
     stt = swiss.state(event, worlds_whatif())
     st.session_state["worlds_whatif"] = stt.whatif       # stale picks are dropped
@@ -751,8 +838,8 @@ def page_worlds() -> None:
 
     c1, c2, c3 = st.columns([5, 2, 2], vertical_alignment="center")
     c1.caption(f"What-if: {n_whatifs} pick(s) and draw(s) applied to the odds." if active else
-               "Click a team on any open series to play out a scenario, or draw the next round yourself. "
-               "Picks are yours alone and are not saved.")
+               "Click a team on any open series to play out a scenario, or draw the next round yourself, "
+               "at random or by choosing the matchups. Picks are yours alone and are not saved.")
     c2.button("Play out the rest", on_click=play_out_rest, args=(event,), width="stretch",
               help="Fill every open series and draw once, weighted by the model.")
     c3.button("Reset", on_click=reset_whatif, disabled=not active, width="stretch")
@@ -777,6 +864,9 @@ def page_worlds() -> None:
     else:
         worlds_title(table, base, active)
     title_strip(table, active)
+    target = st.session_state.pop("worlds_matchups", None)      # popped, so a closed dialog stays closed
+    if target is not None:
+        matchups_dialog(stt, target)
 
 
 def projected_odds() -> None:

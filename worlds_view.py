@@ -13,7 +13,7 @@ import bracket
 import monte_carlo as mc
 
 SOURCES = {"auto": "from Oracle's Elixir", "manual": "entered by hand in the config",
-           "draw": "inferred from the next draw"}
+           "draw": "inferred from the next draw", "live": "from lolesports.com"}
 
 
 @dataclass
@@ -147,6 +147,9 @@ def swiss_board(teams: Teams, event, stt, odds: mc.Odds) -> dict:
             label = f"Draw round {r}" if r == nxt else f"Redraw round {r}"
             hint = None if ready else ("Decide the Play-In first" if r == 1 else f"Decide round {r - 1} first")
             boxes.append({"action": {"id": f"draw:{r}", "label": label, "disabled": not ready, "hint": hint}})
+            if r >= 2:
+                boxes.append({"action": {"id": f"pick:{r}", "label": f"Choose round {r} matchups",
+                                         "disabled": not ready}})
         if r in stt.hypo_draws:
             boxes.append({"note": "Hypothetical draw — yours alone, not saved."})
 
@@ -287,6 +290,8 @@ def knockout_board(teams: Teams, event, stt, odds: mc.Odds) -> dict:
         action = {"id": "draw:qf", "label": "Redraw quarterfinals" if stt.hypo_qf else "Draw quarterfinals",
                   "disabled": not qf_ready, "hint": None if qf_ready else "Decide the Swiss stage first"}
         qf_boxes.append({"action": action})
+        qf_boxes.append({"action": {"id": "pick:qf", "label": "Choose quarterfinal matchups",
+                                    "disabled": not qf_ready}})
     if stt.hypo_qf:
         qf_boxes.append({"note": "Hypothetical draw — yours alone, not saved."})
     columns = [

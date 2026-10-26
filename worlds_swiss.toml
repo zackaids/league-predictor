@@ -1,7 +1,8 @@
 # Worlds 2026 Swiss stage + knockout. Facts, not assumptions (unlike
-# worlds_field.toml), but hand-entered: check them against an official source
-# (lolesports.com/news/worlds-2026-primer) when editing, or run
-# `python lolesports.py`, which prints the TOML for any new draw or result.
+# worlds_field.toml). The draws, results and quarterfinal draw are read live from
+# lolesports.com (python lolesports.py shows what it holds), so this file only
+# needs what the schedule lacks. Anything entered here overrides the schedule, so
+# check it against an official source (lolesports.com/news/worlds-2026-primer).
 #
 # Format: 16 teams, 5 rounds. 3 wins advance, 3 losses are out. A match is Bo3
 # (Fearless) when it can advance or eliminate -- the record has 2 wins or 2
@@ -33,8 +34,9 @@ teams = [
   { name = "Dplus Kia",           short = "DK",   tier = 4 },
 ]
 
-# Each round's draw, entered after Riot announces it (Oct 18, 23, 24, 26, 30).
-# Keyed by the record going in. Leave a round out until it is drawn.
+# Each round's draw (Oct 18, 23, 24, 26, 30). Optional after Round 1: later rounds
+# are read from lolesports.com as they are drawn, and a round entered here wins
+# over the schedule's. Keyed by the record going in.
 #   [draws.1]
 #   "0-0" = [["Gen.G", "Dplus Kia"], ...]
 [draws.1]

@@ -1,10 +1,11 @@
-"""Worlds schedule check: what lolesports.com knows that the configs do not.
+"""Worlds schedule: what lolesports.com knows that the configs do not.
 
 `worlds_bracket.toml` and `worlds_swiss.toml` are hand-entered, and Oracle's
 Elixir lags the real event by hours. The schedule behind lolesports.com has each
 Play-In and Swiss series the moment it is drawn, with scores once it is played.
-This reads it, compares it with the configs and the series log, and prints the
-TOML to paste for anything new. It never writes a file.
+
+As a CLI this reads it, compares it with the configs and the series log, and
+prints the TOML to paste for anything new. It never writes a file.
 
     python lolesports.py            # print what to add, and any conflicts
     python lolesports.py --json     # dump the raw schedule events instead
@@ -12,6 +13,12 @@ TOML to paste for anything new. It never writes a file.
 
 Exit status: 0 in sync or only additions, 1 a conflict with the configs,
 2 the schedule could not be fetched.
+
+As a library it feeds the Worlds odds and the app: `live_facts` turns the events
+into a `swiss.Live` that `swiss.resolve_live` merges under the config, and
+`schedule` / `save_snapshot` / `load_snapshot` keep the pipeline's copy of the
+schedule (`{year}_worlds_schedule.json`), the app's fallback when the API is down.
+Only the pipeline (`swiss.write_outputs`) writes that snapshot; the CLI does not.
 
 The quarterfinal draw comes back in start-time order. Riot does not say which
 slot is QF1 (QF1+QF2 feed SF1), so confirm that order against the official bracket.
@@ -25,9 +32,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
 
 import bracket
 import monte_carlo as mc
+import paths
 import swiss
 from paths import CURRENT_YEAR
 
@@ -46,22 +55,22 @@ CODE_ALIASES = {"TLAW": "TL"}
 
 # ------------------------------------------------------------------ fetch
 
-def _page(token: str | None) -> dict:
+def _page(token: str | None, timeout: float = 30) -> dict:
     query = {"hl": "en-US", "leagueId": WORLDS_LEAGUE_ID}
     if token:
         query["pageToken"] = token
     req = urllib.request.Request(f"{API}?{urllib.parse.urlencode(query)}",
                                  headers={"x-api-key": API_KEY})
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.load(resp)["data"]["schedule"]
 
 
-def fetch_events(since: str) -> list[dict]:
+def fetch_events(since: str, timeout: float = 30) -> list[dict]:
     """Every schedule event from the newest page back to `since` (an ISO date)."""
     events: dict[str, dict] = {}
     token = None
     for _ in range(MAX_PAGES):
-        page = _page(token)
+        page = _page(token, timeout)
         for e in page["events"]:
             if e.get("match"):
                 events[e["match"]["id"]] = e
@@ -80,10 +89,17 @@ class Match:
     teams: tuple          # config names; None for an undrawn slot
     wins: tuple
     done: bool
+    outcomes: tuple = (None, None)    # each team's result.outcome, for a match gameWins cannot decide
 
     @property
     def winner(self) -> str | None:
-        return self.teams[0] if self.wins[0] > self.wins[1] else self.teams[1] if self.done else None
+        if self.wins[0] > self.wins[1]:
+            return self.teams[0]
+        if not self.done:
+            return None
+        if self.wins[1] > self.wins[0] or self.outcomes[1] == "win":
+            return self.teams[1]
+        return self.teams[0] if self.outcomes[0] == "win" else None
 
     @property
     def score(self) -> str:
@@ -109,7 +125,7 @@ def parse(events: list[dict], since: str, names: dict[str, str]) -> list[Match]:
             wins.append(res.get("gameWins") or 0)
             outcomes.append(res.get("outcome"))
         done = e["state"] == "completed" and None not in teams and "win" in outcomes
-        out.append(Match(e["startTime"], e["blockName"], tuple(teams), tuple(wins), done))
+        out.append(Match(e["startTime"], e["blockName"], tuple(teams), tuple(wins), done, tuple(outcomes)))
     return out
 
 
@@ -161,20 +177,41 @@ def swiss_rounds(matches: list[Match]) -> tuple[dict[int, list[Match]], int]:
     return rounds, i
 
 
+def walk_swiss(matches: list[Match]) -> list[tuple[int, list[Match], dict[str, tuple[int, int]]]]:
+    """(round, its series, every team's record going in) for each round the schedule has drawn.
+
+    Stops before a round with an undrawn slot or a missing series, and after the first
+    round that is not finished -- later records would not be known. Records come only
+    from the schedule's own results.
+    """
+    rounds, _ = swiss_rounds(matches)
+    rec: dict[str, tuple[int, int]] = {}
+    out = []
+    for r, ms in rounds.items():
+        if len(ms) < sum(s for _, _, s in mc._layout(r)) // 2 or any(None in m.teams for m in ms):
+            break
+        out.append((r, ms, {t: rec.get(t, (0, 0)) for m in ms for t in m.teams}))
+        if not all(m.done for m in ms):
+            break
+        for m in ms:
+            w = m.winner
+            lo = m.teams[1] if w == m.teams[0] else m.teams[0]
+            rec[w] = (rec.get(w, (0, 0))[0] + 1, rec.get(w, (0, 0))[1])
+            rec[lo] = (rec.get(lo, (0, 0))[0], rec.get(lo, (0, 0))[1] + 1)
+    return out
+
+
 def check_swiss(rep: Report, cfg: dict, ev: swiss.Event | None, matches: list[Match]) -> None:
-    rounds, expected = swiss_rounds(matches)
+    _, expected = swiss_rounds(matches)
     total = sum(m.block == "Swiss" for m in matches)
     if total != expected:
         rep.notes.append(f"the schedule has {total} Swiss series, the format has {expected}")
 
-    rec: dict[str, tuple[int, int]] = {}
-    for r, ms in rounds.items():
-        if not ms or any(None in m.teams for m in ms):
-            break
+    for r, ms, rec_in in walk_swiss(matches):
         groups: dict[tuple, list] = {}
         for m in ms:
             a, b = m.teams
-            ra, rb = rec.get(a, (0, 0)), rec.get(b, (0, 0))
+            ra, rb = rec_in[a], rec_in[b]
             if ra != rb:
                 rep.conflicts.append(f"Swiss round {r}: {a} ({ra[0]}-{ra[1]}) v {b} ({rb[0]}-{rb[1]}) "
                                      f"are not on the same record")
@@ -218,18 +255,15 @@ def check_swiss(rep: Report, cfg: dict, ev: swiss.Event | None, matches: list[Ma
         if res_lines:
             rep.add("worlds_swiss.toml -> under [results.swiss]", res_lines)
 
-        if not all(m.done for m in ms):
-            break
-        for m in ms:
-            w = m.winner
-            lo = m.teams[1] if w == m.teams[0] else m.teams[0]
-            rec[w] = (rec.get(w, (0, 0))[0] + 1, rec.get(w, (0, 0))[1])
-            rec[lo] = (rec.get(lo, (0, 0))[0], rec.get(lo, (0, 0))[1] + 1)
+
+def api_quarterfinals(matches: list[Match]) -> list[tuple] | None:
+    """QF1..QF4 in start-time order once all four are drawn, else None."""
+    qm = sorted((m for m in matches if m.block == "Quarterfinals"), key=lambda m: m.start)
+    return [m.teams for m in qm] if len(qm) == 4 and all(None not in m.teams for m in qm) else None
 
 
 def check_knockout(rep: Report, cfg: dict, ev: swiss.Event | None, matches: list[Match]) -> None:
-    qm = sorted((m for m in matches if m.block == "Quarterfinals"), key=lambda m: m.start)
-    api_qf = [m.teams for m in qm] if len(qm) == 4 and all(None not in m.teams for m in qm) else None
+    api_qf = api_quarterfinals(matches)
     qf = cfg["quarterfinals"]
     if api_qf and qf is None:
         rep.add("worlds_swiss.toml -> under [knockout]", [
@@ -262,6 +296,73 @@ def check_knockout(rep: Report, cfg: dict, ev: swiss.Event | None, matches: list
             rep.conflicts.append(f"Knockout {key}: the config/log says {have} won, lolesports says {hit.winner}")
     if lines:
         rep.add("worlds_swiss.toml -> under [results.knockout]", lines)
+
+
+# ------------------------------------------------------------------ facts
+
+def live_facts(cfg: dict, bcfg: dict, events: list[dict]) -> swiss.Live:
+    """What the schedule says, as the facts `swiss.merge_live` layers under the config.
+
+    A Swiss round counts only when every series is on a single record, and nothing
+    after a round that fails that. An unknown team code raises (from `parse`).
+    """
+    names = {t["short"]: t["name"] for t in cfg["teams"] + bcfg["teams"]}
+    matches = parse(events, str(bcfg["start"]), names)
+    live = swiss.Live()
+    for r, ms, rec_in in walk_swiss(matches):
+        if any(rec_in[a] != rec_in[b] for a, b in (m.teams for m in ms)):
+            break
+        live.draws[r] = [m.teams for m in ms]
+        live.labels[r] = rec_in
+        for m in ms:
+            if m.done:
+                live.results[frozenset(m.teams)] = {"winner": m.winner, "score": m.score}
+    live.qf = api_quarterfinals(matches)
+    for m in matches:
+        if m.block in KO_BLOCKS and m.done:
+            live.ko[frozenset(m.teams)] = {"winner": m.winner, "score": m.score}
+    return live
+
+
+# ------------------------------------------------------------------ snapshot
+
+def snapshot_path(year: int) -> Path:
+    return paths.processed(year, "worlds_schedule", "json")
+
+
+def save_snapshot(year: int, events: list[dict], since: str) -> None:
+    """Keep the stage events from `since` on, so the app has a schedule when the API is down."""
+    kept = sorted((e for e in events if e.get("blockName") in BLOCKS and e["startTime"] >= since),
+                  key=lambda e: e["startTime"])
+    path = snapshot_path(year)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(kept, indent=1, sort_keys=True, ensure_ascii=False))
+    tmp.replace(path)
+
+
+def load_snapshot(year: int) -> list[dict] | None:
+    path = snapshot_path(year)
+    try:
+        events = json.loads(path.read_text())
+    except (OSError, ValueError):     # missing, unreadable or conflict-marked: no snapshot
+        return None
+    return events if isinstance(events, list) else None
+
+
+def schedule(year: int, since: str) -> tuple[list[dict] | None, str]:
+    """The schedule and where it came from: the API (saved as the snapshot), else the snapshot, else None."""
+    try:
+        events = fetch_events(since)
+    except Exception as exc:     # a dropped connection or a changed response shape must not escape
+        events = load_snapshot(year)
+        if events is None:
+            return None, f"lolesports.com unreachable ({exc!r}); no snapshot, config only"
+        return events, f"lolesports.com unreachable ({exc!r}); using the last snapshot"
+    try:
+        save_snapshot(year, events, since)
+    except OSError as exc:
+        return events, f"live from lolesports.com (snapshot not saved: {exc!r})"
+    return events, "live from lolesports.com (snapshot saved)"
 
 
 # ------------------------------------------------------------------ main
