@@ -176,6 +176,16 @@ class Event:
     notes: list[str] = dc_field(default_factory=list)
 
 
+@dataclass
+class Live:
+    """Facts from the lolesports.com schedule (lolesports.live_facts), merged under the config."""
+    draws: dict[int, list[tuple[str, str]]] = dc_field(default_factory=dict)        # complete rounds only
+    labels: dict[int, dict[str, tuple[int, int]]] = dc_field(default_factory=dict)  # record going in
+    results: dict[frozenset, dict] = dc_field(default_factory=dict)                 # Swiss pair -> winner/score
+    qf: list[tuple[str, str]] | None = None                                         # in start-time order
+    ko: dict[frozenset, dict] = dc_field(default_factory=dict)                      # knockout pair -> winner/score
+
+
 def _check_round(r: int, pairs, lab: dict, rec: dict | None, met: set,
                  tier: dict, league: dict, league_rule: bool) -> None:
     sizes = Counter(lab.values())

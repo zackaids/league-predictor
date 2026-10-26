@@ -46,22 +46,22 @@ CODE_ALIASES = {"TLAW": "TL"}
 
 # ------------------------------------------------------------------ fetch
 
-def _page(token: str | None) -> dict:
+def _page(token: str | None, timeout: float = 30) -> dict:
     query = {"hl": "en-US", "leagueId": WORLDS_LEAGUE_ID}
     if token:
         query["pageToken"] = token
     req = urllib.request.Request(f"{API}?{urllib.parse.urlencode(query)}",
                                  headers={"x-api-key": API_KEY})
-    with urllib.request.urlopen(req, timeout=30) as resp:
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.load(resp)["data"]["schedule"]
 
 
-def fetch_events(since: str) -> list[dict]:
+def fetch_events(since: str, timeout: float = 30) -> list[dict]:
     """Every schedule event from the newest page back to `since` (an ISO date)."""
     events: dict[str, dict] = {}
     token = None
     for _ in range(MAX_PAGES):
-        page = _page(token)
+        page = _page(token, timeout)
         for e in page["events"]:
             if e.get("match"):
                 events[e["match"]["id"]] = e
@@ -161,20 +161,41 @@ def swiss_rounds(matches: list[Match]) -> tuple[dict[int, list[Match]], int]:
     return rounds, i
 
 
+def walk_swiss(matches: list[Match]) -> list[tuple[int, list[Match], dict[str, tuple[int, int]]]]:
+    """(round, its series, every team's record going in) for each round the schedule has drawn.
+
+    Stops before a round with an undrawn slot or a missing series, and after the first
+    round that is not finished -- later records would not be known. Records come only
+    from the schedule's own results.
+    """
+    rounds, _ = swiss_rounds(matches)
+    rec: dict[str, tuple[int, int]] = {}
+    out = []
+    for r, ms in rounds.items():
+        if len(ms) < sum(s for _, _, s in mc._layout(r)) // 2 or any(None in m.teams for m in ms):
+            break
+        out.append((r, ms, {t: rec.get(t, (0, 0)) for m in ms for t in m.teams}))
+        if not all(m.done for m in ms):
+            break
+        for m in ms:
+            w = m.winner
+            lo = m.teams[1] if w == m.teams[0] else m.teams[0]
+            rec[w] = (rec.get(w, (0, 0))[0] + 1, rec.get(w, (0, 0))[1])
+            rec[lo] = (rec.get(lo, (0, 0))[0], rec.get(lo, (0, 0))[1] + 1)
+    return out
+
+
 def check_swiss(rep: Report, cfg: dict, ev: swiss.Event | None, matches: list[Match]) -> None:
-    rounds, expected = swiss_rounds(matches)
+    _, expected = swiss_rounds(matches)
     total = sum(m.block == "Swiss" for m in matches)
     if total != expected:
         rep.notes.append(f"the schedule has {total} Swiss series, the format has {expected}")
 
-    rec: dict[str, tuple[int, int]] = {}
-    for r, ms in rounds.items():
-        if not ms or any(None in m.teams for m in ms):
-            break
+    for r, ms, rec_in in walk_swiss(matches):
         groups: dict[tuple, list] = {}
         for m in ms:
             a, b = m.teams
-            ra, rb = rec.get(a, (0, 0)), rec.get(b, (0, 0))
+            ra, rb = rec_in[a], rec_in[b]
             if ra != rb:
                 rep.conflicts.append(f"Swiss round {r}: {a} ({ra[0]}-{ra[1]}) v {b} ({rb[0]}-{rb[1]}) "
                                      f"are not on the same record")
@@ -218,18 +239,15 @@ def check_swiss(rep: Report, cfg: dict, ev: swiss.Event | None, matches: list[Ma
         if res_lines:
             rep.add("worlds_swiss.toml -> under [results.swiss]", res_lines)
 
-        if not all(m.done for m in ms):
-            break
-        for m in ms:
-            w = m.winner
-            lo = m.teams[1] if w == m.teams[0] else m.teams[0]
-            rec[w] = (rec.get(w, (0, 0))[0] + 1, rec.get(w, (0, 0))[1])
-            rec[lo] = (rec.get(lo, (0, 0))[0], rec.get(lo, (0, 0))[1] + 1)
+
+def api_quarterfinals(matches: list[Match]) -> list[tuple] | None:
+    """QF1..QF4 in start-time order once all four are drawn, else None."""
+    qm = sorted((m for m in matches if m.block == "Quarterfinals"), key=lambda m: m.start)
+    return [m.teams for m in qm] if len(qm) == 4 and all(None not in m.teams for m in qm) else None
 
 
 def check_knockout(rep: Report, cfg: dict, ev: swiss.Event | None, matches: list[Match]) -> None:
-    qm = sorted((m for m in matches if m.block == "Quarterfinals"), key=lambda m: m.start)
-    api_qf = [m.teams for m in qm] if len(qm) == 4 and all(None not in m.teams for m in qm) else None
+    api_qf = api_quarterfinals(matches)
     qf = cfg["quarterfinals"]
     if api_qf and qf is None:
         rep.add("worlds_swiss.toml -> under [knockout]", [
@@ -262,6 +280,32 @@ def check_knockout(rep: Report, cfg: dict, ev: swiss.Event | None, matches: list
             rep.conflicts.append(f"Knockout {key}: the config/log says {have} won, lolesports says {hit.winner}")
     if lines:
         rep.add("worlds_swiss.toml -> under [results.knockout]", lines)
+
+
+# ------------------------------------------------------------------ facts
+
+def live_facts(cfg: dict, bcfg: dict, events: list[dict]) -> swiss.Live:
+    """What the schedule says, as the facts `swiss.merge_live` layers under the config.
+
+    A Swiss round counts only when every series is on a single record, and nothing
+    after a round that fails that. An unknown team code raises (from `parse`).
+    """
+    names = {t["short"]: t["name"] for t in cfg["teams"] + bcfg["teams"]}
+    matches = parse(events, str(bcfg["start"]), names)
+    live = swiss.Live()
+    for r, ms, rec_in in walk_swiss(matches):
+        if any(rec_in[a] != rec_in[b] for a, b in (m.teams for m in ms)):
+            break
+        live.draws[r] = [m.teams for m in ms]
+        live.labels[r] = rec_in
+        for m in ms:
+            if m.done:
+                live.results[frozenset(m.teams)] = {"winner": m.winner, "score": m.score}
+    live.qf = api_quarterfinals(matches)
+    for m in matches:
+        if m.block in KO_BLOCKS and m.done:
+            live.ko[frozenset(m.teams)] = {"winner": m.winner, "score": m.score}
+    return live
 
 
 # ------------------------------------------------------------------ main
