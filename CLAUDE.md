@@ -166,26 +166,39 @@ event on top of it (config, results, what-if layering); without
 `worlds_swiss.toml` for the season, `monte_carlo.simulate_and_write` falls back to
 a projected field from `worlds_field.toml`.
 
-**Running the event** (`worlds_swiss.toml`). Facts are hand-entered and the app
-reads the config live, so after Riot announces a draw add it and push -- no
-pipeline run needed. Round 1 is drawn Oct 18; rounds 2-5 on Oct 23, 24, 26, 30;
-the quarterfinals Oct 31. Draws are keyed by the record going in
-(`[draws.2]` / `"1-0" = [["A", "B"], ...]`) and are validated against the format.
-Results come from the series log (`WLDs`, inside the stage's dates); a Bo3 at 1-0
-is not a result. Results Oracle's Elixir has not published yet are inferred from
-the next round's draw or the quarterfinal draw, and `[results.swiss]` /
-`[results.knockout]` override both. A series between two Swiss teams that no draw
-explains is reported in the page notes, not dropped.
+**Running the event** (`worlds_swiss.toml`). Draws, results and the quarterfinal
+draw come from the lolesports.com schedule (`lolesports.live_facts`), which the app
+reads on a 5-minute cache (`app.fetch_schedule`, `SCHEDULE_TTL`) and the pipeline
+reads on each run, so nothing needs entering by hand. `swiss.resolve_live` merges it
+*under* `worlds_swiss.toml`: whatever the config holds wins, and a schedule fact that
+fails validation (a rematch, a record that contradicts the results) is dropped with a
+page note rather than raised. Enter a round only to override or pin it. Round 1 is
+drawn Oct 18; rounds 2-5 on Oct 23, 24, 26, 30; the quarterfinals Oct 31. Draws are
+keyed by the record going in (`[draws.2]` / `"1-0" = [["A", "B"], ...]`) and are
+validated against the format. A result's source is, in priority order, manual
+(`[results.swiss]` / `[results.knockout]`), the Oracle's Elixir series log (`WLDs`,
+inside the stage's dates; a Bo3 at 1-0 is not a result), lolesports.com, then
+inferred from the next round's draw or the quarterfinal draw. A series between two
+Swiss teams that no draw explains is reported in the page notes, not dropped.
 League code `WLDs` also holds September LPL qualifier series, which is why every window is a date range.
-`lolesports.py` reads the schedule behind lolesports.com (public API, fresher than
-OE for results), compares it with both configs and the series log, and prints the
-TOML for any new Play-In result, Swiss draw, result or quarterfinal draw, plus any
-`CONFLICT` with what is already entered (exit 1). It never writes the configs, and
-the quarterfinal pairs come back in start-time order, so confirm QF1-QF4 against
-the official bracket.
+`swiss.write_outputs` (the pipeline, `python swiss.py`) saves the schedule it read as
+`{year}_worlds_schedule.json`, committed like the other processed data; it is the
+app's fallback when lolesports.com cannot be reached, and only the pipeline writes
+it. The quarterfinal slots follow the schedule's start-time order (QF1+QF2 feed SF1,
+the 2025 precedent) and are used only if they pass `swiss.check_quarterfinals` and
+the config has no quarterfinal draw. `lolesports.py` is also a CLI: it compares the
+schedule with both configs and the series log and prints the TOML to freeze any new
+Play-In result, Swiss draw, result or quarterfinal draw, plus any `CONFLICT` with
+what is already entered (exit 1). It never writes the configs; confirm QF1-QF4
+against the official bracket before freezing them.
 
 **What-ifs.** The Worlds page keeps picks, hypothetical draws and a hypothetical
-quarterfinal draw in session state (`swiss.new_whatif`). `swiss.state` layers them
+quarterfinal draw in session state (`swiss.new_whatif`). A hypothetical draw is
+either random (`swiss.draw_round`) or chosen: the boards' "Choose ... matchups"
+actions (rounds 2-5 and the quarterfinals; Round 1 stays random) open an
+`st.dialog` (`app.matchups_dialog`) that calls `swiss.set_draw` /
+`swiss.set_quarterfinals`, validated by the same `_check_round` /
+`check_quarterfinals` as real draws. `swiss.state` layers them
 over the real facts: a real result or draw always wins, and a pick or draw whose
 premise changed (an earlier result, the Play-In winner) is dropped along with
 everything built on it. The bracket UI is `board.py` + `assets/board.{js,css}` on

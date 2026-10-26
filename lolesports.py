@@ -1,10 +1,11 @@
-"""Worlds schedule check: what lolesports.com knows that the configs do not.
+"""Worlds schedule: what lolesports.com knows that the configs do not.
 
 `worlds_bracket.toml` and `worlds_swiss.toml` are hand-entered, and Oracle's
 Elixir lags the real event by hours. The schedule behind lolesports.com has each
 Play-In and Swiss series the moment it is drawn, with scores once it is played.
-This reads it, compares it with the configs and the series log, and prints the
-TOML to paste for anything new. It never writes a file.
+
+As a CLI this reads it, compares it with the configs and the series log, and
+prints the TOML to paste for anything new. It never writes a file.
 
     python lolesports.py            # print what to add, and any conflicts
     python lolesports.py --json     # dump the raw schedule events instead
@@ -12,6 +13,12 @@ TOML to paste for anything new. It never writes a file.
 
 Exit status: 0 in sync or only additions, 1 a conflict with the configs,
 2 the schedule could not be fetched.
+
+As a library it feeds the Worlds odds and the app: `live_facts` turns the events
+into a `swiss.Live` that `swiss.resolve_live` merges under the config, and
+`schedule` / `save_snapshot` / `load_snapshot` keep the pipeline's copy of the
+schedule (`{year}_worlds_schedule.json`), the app's fallback when the API is down.
+Only the pipeline (`swiss.write_outputs`) writes that snapshot; the CLI does not.
 
 The quarterfinal draw comes back in start-time order. Riot does not say which
 slot is QF1 (QF1+QF2 feed SF1), so confirm that order against the official bracket.
