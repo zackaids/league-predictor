@@ -469,7 +469,7 @@
      "image": "http://static.lolesports.com/teams/1641199582689_.png",
      "name": "Anyone's Legend",
      "record": {
-      "losses": 2,
+      "losses": 3,
       "wins": 0
      },
      "result": {
@@ -553,7 +553,7 @@
      "name": "Team Liquid Alienware",
      "record": {
       "losses": 2,
-      "wins": 0
+      "wins": 1
      },
      "result": {
       "gameWins": 0,
@@ -709,7 +709,7 @@
      "image": "http://static.lolesports.com/teams/1641199582689_.png",
      "name": "Anyone's Legend",
      "record": {
-      "losses": 2,
+      "losses": 3,
       "wins": 0
      },
      "result": {
@@ -1033,7 +1033,7 @@
      "name": "Team Liquid Alienware",
      "record": {
       "losses": 2,
-      "wins": 0
+      "wins": 1
      },
      "result": {
       "gameWins": 0,
@@ -1402,7 +1402,9 @@
    "slug": "worlds"
   },
   "match": {
-   "flags": [],
+   "flags": [
+    "hasVod"
+   ],
    "id": "115660540726095057",
    "strategy": {
     "count": 3,
@@ -1414,12 +1416,12 @@
      "image": "http://static.lolesports.com/teams/1641199582689_.png",
      "name": "Anyone's Legend",
      "record": {
-      "losses": 2,
+      "losses": 3,
       "wins": 0
      },
      "result": {
       "gameWins": 0,
-      "outcome": null
+      "outcome": "loss"
      }
     },
     {
@@ -1428,17 +1430,17 @@
      "name": "Team Liquid Alienware",
      "record": {
       "losses": 2,
-      "wins": 0
+      "wins": 1
      },
      "result": {
-      "gameWins": 1,
-      "outcome": null
+      "gameWins": 2,
+      "outcome": "win"
      }
     }
    ]
   },
   "startTime": "2026-10-26T22:00:00Z",
-  "state": "inProgress",
+  "state": "completed",
   "type": "match"
  },
  {
@@ -1456,18 +1458,30 @@
    },
    "teams": [
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "MKOI",
+     "image": "http://static.lolesports.com/teams/1734012609283_MKOI_FullColor_Blue.png",
+     "name": "Movistar KOI",
+     "record": {
+      "losses": 1,
+      "wins": 2
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     },
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "T1",
+     "image": "http://static.lolesports.com/teams/1726801573959_539px-T1_2019_full_allmode.png",
+     "name": "T1",
+     "record": {
+      "losses": 1,
+      "wins": 2
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     }
    ]
   },
@@ -1490,56 +1504,34 @@
    },
    "teams": [
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "LYON",
+     "image": "http://static.lolesports.com/teams/1743717443673_isotypelyon-03.png",
+     "name": "LYON",
+     "record": {
+      "losses": 1,
+      "wins": 2
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     },
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "IG",
+     "image": "http://static.lolesports.com/teams/1634762917340_300px-Invictus_Gaming_logo.png",
+     "name": "Invictus Gaming",
+     "record": {
+      "losses": 1,
+      "wins": 2
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     }
    ]
   },
   "startTime": "2026-10-28T23:00:00Z",
-  "state": "unstarted",
-  "type": "match"
- },
- {
-  "blockName": "Swiss",
-  "league": {
-   "name": "Worlds",
-   "slug": "worlds"
-  },
-  "match": {
-   "flags": [],
-   "id": "115660540726095069",
-   "strategy": {
-    "count": 3,
-    "type": "bestOf"
-   },
-   "teams": [
-    {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
-    },
-    {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
-    }
-   ]
-  },
-  "startTime": "2026-10-29T20:00:00Z",
   "state": "unstarted",
   "type": "match"
  },
@@ -1558,18 +1550,76 @@
    },
    "teams": [
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "CFO",
+     "image": "http://static.lolesports.com/teams/1656307849320_CFO_Logo.png",
+     "name": "CTBC Flying Oyster",
+     "record": {
+      "losses": 2,
+      "wins": 1
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     },
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "KC",
+     "image": "http://static.lolesports.com/teams/1704714951336_KC.png",
+     "name": "Karmine Corp",
+     "record": {
+      "losses": 2,
+      "wins": 1
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
+    }
+   ]
+  },
+  "startTime": "2026-10-29T20:00:00Z",
+  "state": "unstarted",
+  "type": "match"
+ },
+ {
+  "blockName": "Swiss",
+  "league": {
+   "name": "Worlds",
+   "slug": "worlds"
+  },
+  "match": {
+   "flags": [],
+   "id": "115660540726095069",
+   "strategy": {
+    "count": 3,
+    "type": "bestOf"
+   },
+   "teams": [
+    {
+     "code": "BLG",
+     "image": "http://static.lolesports.com/teams/1682322954525_Bilibili_Gaming_logo_20211.png",
+     "name": "BILIBILI GAMING",
+     "record": {
+      "losses": 1,
+      "wins": 2
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
+    },
+    {
+     "code": "TES",
+     "image": "http://static.lolesports.com/teams/1592592064571_TopEsportsTES-01-FullonDark.png",
+     "name": "TOP ESPORTS",
+     "record": {
+      "losses": 1,
+      "wins": 2
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     }
    ]
   },
@@ -1592,18 +1642,30 @@
    },
    "teams": [
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "TLAW",
+     "image": "http://static.lolesports.com/teams/1769357207762_TLAlienware_Minimal_Bug-White.png",
+     "name": "Team Liquid Alienware",
+     "record": {
+      "losses": 2,
+      "wins": 1
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     },
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "LOS",
+     "image": "http://static.lolesports.com/teams/1784013312149_LOS-OLaranja.png",
+     "name": "LOS",
+     "record": {
+      "losses": 2,
+      "wins": 1
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     }
    ]
   },
@@ -1626,18 +1688,30 @@
    },
    "teams": [
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "G2",
+     "image": "http://static.lolesports.com/teams/G2-FullonDark.png",
+     "name": "G2 Esports",
+     "record": {
+      "losses": 2,
+      "wins": 1
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     },
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "HLE",
+     "image": "http://static.lolesports.com/teams/1631819564399_hle-2021-worlds.png",
+     "name": "Hanwha Life Esports",
+     "record": {
+      "losses": 2,
+      "wins": 1
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     }
    ]
   },
