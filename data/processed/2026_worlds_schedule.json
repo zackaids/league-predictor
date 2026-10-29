@@ -313,7 +313,7 @@
      "name": "Invictus Gaming",
      "record": {
       "losses": 1,
-      "wins": 2
+      "wins": 3
      },
      "result": {
       "gameWins": 0,
@@ -408,7 +408,7 @@
      "image": "http://static.lolesports.com/teams/1734012609283_MKOI_FullColor_Blue.png",
      "name": "Movistar KOI",
      "record": {
-      "losses": 1,
+      "losses": 2,
       "wins": 2
      },
      "result": {
@@ -614,7 +614,7 @@
      "name": "T1",
      "record": {
       "losses": 1,
-      "wins": 2
+      "wins": 3
      },
      "result": {
       "gameWins": 1,
@@ -648,7 +648,7 @@
      "image": "http://static.lolesports.com/teams/1743717443673_isotypelyon-03.png",
      "name": "LYON",
      "record": {
-      "losses": 1,
+      "losses": 2,
       "wins": 2
      },
      "result": {
@@ -744,7 +744,7 @@
      "image": "http://static.lolesports.com/teams/1734012609283_MKOI_FullColor_Blue.png",
      "name": "Movistar KOI",
      "record": {
-      "losses": 1,
+      "losses": 2,
       "wins": 2
      },
      "result": {
@@ -853,7 +853,7 @@
      "image": "http://static.lolesports.com/teams/1743717443673_isotypelyon-03.png",
      "name": "LYON",
      "record": {
-      "losses": 1,
+      "losses": 2,
       "wins": 2
      },
      "result": {
@@ -902,7 +902,7 @@
      "name": "Invictus Gaming",
      "record": {
       "losses": 1,
-      "wins": 2
+      "wins": 3
      },
      "result": {
       "gameWins": 1,
@@ -998,7 +998,7 @@
      "name": "T1",
      "record": {
       "losses": 1,
-      "wins": 2
+      "wins": 3
      },
      "result": {
       "gameWins": 0,
@@ -1081,7 +1081,7 @@
      "name": "Invictus Gaming",
      "record": {
       "losses": 1,
-      "wins": 2
+      "wins": 3
      },
      "result": {
       "gameWins": 1,
@@ -1176,7 +1176,7 @@
      "image": "http://static.lolesports.com/teams/1734012609283_MKOI_FullColor_Blue.png",
      "name": "Movistar KOI",
      "record": {
-      "losses": 1,
+      "losses": 2,
       "wins": 2
      },
      "result": {
@@ -1224,7 +1224,7 @@
      "image": "http://static.lolesports.com/teams/1743717443673_isotypelyon-03.png",
      "name": "LYON",
      "record": {
-      "losses": 1,
+      "losses": 2,
       "wins": 2
      },
      "result": {
@@ -1273,7 +1273,7 @@
      "name": "T1",
      "record": {
       "losses": 1,
-      "wins": 2
+      "wins": 3
      },
      "result": {
       "gameWins": 1,
@@ -1450,7 +1450,9 @@
    "slug": "worlds"
   },
   "match": {
-   "flags": [],
+   "flags": [
+    "hasVod"
+   ],
    "id": "115660540726095061",
    "strategy": {
     "count": 3,
@@ -1458,35 +1460,35 @@
    },
    "teams": [
     {
-     "code": "MKOI",
-     "image": "http://static.lolesports.com/teams/1734012609283_MKOI_FullColor_Blue.png",
-     "name": "Movistar KOI",
-     "record": {
-      "losses": 1,
-      "wins": 2
-     },
-     "result": {
-      "gameWins": 0,
-      "outcome": null
-     }
-    },
-    {
      "code": "T1",
      "image": "http://static.lolesports.com/teams/1726801573959_539px-T1_2019_full_allmode.png",
      "name": "T1",
      "record": {
       "losses": 1,
+      "wins": 3
+     },
+     "result": {
+      "gameWins": 2,
+      "outcome": "win"
+     }
+    },
+    {
+     "code": "MKOI",
+     "image": "http://static.lolesports.com/teams/1734012609283_MKOI_FullColor_Blue.png",
+     "name": "Movistar KOI",
+     "record": {
+      "losses": 2,
       "wins": 2
      },
      "result": {
       "gameWins": 0,
-      "outcome": null
+      "outcome": "loss"
      }
     }
    ]
   },
   "startTime": "2026-10-28T20:00:00Z",
-  "state": "unstarted",
+  "state": "completed",
   "type": "match"
  },
  {
@@ -1496,7 +1498,9 @@
    "slug": "worlds"
   },
   "match": {
-   "flags": [],
+   "flags": [
+    "hasVod"
+   ],
    "id": "115660540726095065",
    "strategy": {
     "count": 3,
@@ -1508,12 +1512,12 @@
      "image": "http://static.lolesports.com/teams/1743717443673_isotypelyon-03.png",
      "name": "LYON",
      "record": {
-      "losses": 1,
+      "losses": 2,
       "wins": 2
      },
      "result": {
-      "gameWins": 0,
-      "outcome": null
+      "gameWins": 1,
+      "outcome": "loss"
      }
     },
     {
@@ -1522,17 +1526,17 @@
      "name": "Invictus Gaming",
      "record": {
       "losses": 1,
-      "wins": 2
+      "wins": 3
      },
      "result": {
-      "gameWins": 0,
-      "outcome": null
+      "gameWins": 2,
+      "outcome": "win"
      }
     }
    ]
   },
   "startTime": "2026-10-28T23:00:00Z",
-  "state": "unstarted",
+  "state": "completed",
   "type": "match"
  },
  {
