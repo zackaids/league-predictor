@@ -361,7 +361,7 @@
      "name": "TOP ESPORTS",
      "record": {
       "losses": 1,
-      "wins": 2
+      "wins": 3
      },
      "result": {
       "gameWins": 0,
@@ -374,7 +374,7 @@
      "name": "Hanwha Life Esports",
      "record": {
       "losses": 2,
-      "wins": 1
+      "wins": 2
      },
      "result": {
       "gameWins": 1,
@@ -421,7 +421,7 @@
      "image": "http://static.lolesports.com/teams/1682322954525_Bilibili_Gaming_logo_20211.png",
      "name": "BILIBILI GAMING",
      "record": {
-      "losses": 1,
+      "losses": 2,
       "wins": 2
      },
      "result": {
@@ -457,7 +457,7 @@
      "name": "Karmine Corp",
      "record": {
       "losses": 2,
-      "wins": 1
+      "wins": 2
      },
      "result": {
       "gameWins": 1,
@@ -517,7 +517,7 @@
      "image": "http://static.lolesports.com/teams/G2-FullonDark.png",
      "name": "G2 Esports",
      "record": {
-      "losses": 2,
+      "losses": 3,
       "wins": 1
      },
      "result": {
@@ -552,7 +552,7 @@
      "image": "http://static.lolesports.com/teams/1769357207762_TLAlienware_Minimal_Bug-White.png",
      "name": "Team Liquid Alienware",
      "record": {
-      "losses": 2,
+      "losses": 3,
       "wins": 1
      },
      "result": {
@@ -565,7 +565,7 @@
      "image": "http://static.lolesports.com/teams/1656307849320_CFO_Logo.png",
      "name": "CTBC Flying Oyster",
      "record": {
-      "losses": 2,
+      "losses": 3,
       "wins": 1
      },
      "result": {
@@ -601,7 +601,7 @@
      "name": "LOS",
      "record": {
       "losses": 2,
-      "wins": 1
+      "wins": 2
      },
      "result": {
       "gameWins": 0,
@@ -697,7 +697,7 @@
      "name": "TOP ESPORTS",
      "record": {
       "losses": 1,
-      "wins": 2
+      "wins": 3
      },
      "result": {
       "gameWins": 1,
@@ -757,7 +757,7 @@
      "image": "http://static.lolesports.com/teams/1656307849320_CFO_Logo.png",
      "name": "CTBC Flying Oyster",
      "record": {
-      "losses": 2,
+      "losses": 3,
       "wins": 1
      },
      "result": {
@@ -793,7 +793,7 @@
      "name": "LOS",
      "record": {
       "losses": 2,
-      "wins": 1
+      "wins": 2
      },
      "result": {
       "gameWins": 0,
@@ -805,7 +805,7 @@
      "image": "http://static.lolesports.com/teams/G2-FullonDark.png",
      "name": "G2 Esports",
      "record": {
-      "losses": 2,
+      "losses": 3,
       "wins": 1
      },
      "result": {
@@ -841,7 +841,7 @@
      "name": "Karmine Corp",
      "record": {
       "losses": 2,
-      "wins": 1
+      "wins": 2
      },
      "result": {
       "gameWins": 0,
@@ -937,7 +937,7 @@
      "name": "Hanwha Life Esports",
      "record": {
       "losses": 2,
-      "wins": 1
+      "wins": 2
      },
      "result": {
       "gameWins": 0,
@@ -1032,7 +1032,7 @@
      "image": "http://static.lolesports.com/teams/1769357207762_TLAlienware_Minimal_Bug-White.png",
      "name": "Team Liquid Alienware",
      "record": {
-      "losses": 2,
+      "losses": 3,
       "wins": 1
      },
      "result": {
@@ -1045,7 +1045,7 @@
      "image": "http://static.lolesports.com/teams/1682322954525_Bilibili_Gaming_logo_20211.png",
      "name": "BILIBILI GAMING",
      "record": {
-      "losses": 1,
+      "losses": 2,
       "wins": 2
      },
      "result": {
@@ -1094,7 +1094,7 @@
      "name": "Hanwha Life Esports",
      "record": {
       "losses": 2,
-      "wins": 1
+      "wins": 2
      },
      "result": {
       "gameWins": 0,
@@ -1129,7 +1129,7 @@
      "name": "TOP ESPORTS",
      "record": {
       "losses": 1,
-      "wins": 2
+      "wins": 3
      },
      "result": {
       "gameWins": 1,
@@ -1141,7 +1141,7 @@
      "image": "http://static.lolesports.com/teams/G2-FullonDark.png",
      "name": "G2 Esports",
      "record": {
-      "losses": 2,
+      "losses": 3,
       "wins": 1
      },
      "result": {
@@ -1285,7 +1285,7 @@
      "image": "http://static.lolesports.com/teams/1656307849320_CFO_Logo.png",
      "name": "CTBC Flying Oyster",
      "record": {
-      "losses": 2,
+      "losses": 3,
       "wins": 1
      },
      "result": {
@@ -1320,7 +1320,7 @@
      "image": "http://static.lolesports.com/teams/1682322954525_Bilibili_Gaming_logo_20211.png",
      "name": "BILIBILI GAMING",
      "record": {
-      "losses": 1,
+      "losses": 2,
       "wins": 2
      },
      "result": {
@@ -1334,7 +1334,7 @@
      "name": "Karmine Corp",
      "record": {
       "losses": 2,
-      "wins": 1
+      "wins": 2
      },
      "result": {
       "gameWins": 0,
@@ -1382,7 +1382,7 @@
      "name": "LOS",
      "record": {
       "losses": 2,
-      "wins": 1
+      "wins": 2
      },
      "result": {
       "gameWins": 2,
@@ -1429,7 +1429,7 @@
      "image": "http://static.lolesports.com/teams/1769357207762_TLAlienware_Minimal_Bug-White.png",
      "name": "Team Liquid Alienware",
      "record": {
-      "losses": 2,
+      "losses": 3,
       "wins": 1
      },
      "result": {
@@ -1546,7 +1546,9 @@
    "slug": "worlds"
   },
   "match": {
-   "flags": [],
+   "flags": [
+    "hasVod"
+   ],
    "id": "115660540726095073",
    "strategy": {
     "count": 3,
@@ -1554,35 +1556,35 @@
    },
    "teams": [
     {
-     "code": "CFO",
-     "image": "http://static.lolesports.com/teams/1656307849320_CFO_Logo.png",
-     "name": "CTBC Flying Oyster",
-     "record": {
-      "losses": 2,
-      "wins": 1
-     },
-     "result": {
-      "gameWins": 0,
-      "outcome": null
-     }
-    },
-    {
      "code": "KC",
      "image": "http://static.lolesports.com/teams/1704714951336_KC.png",
      "name": "Karmine Corp",
      "record": {
       "losses": 2,
+      "wins": 2
+     },
+     "result": {
+      "gameWins": 2,
+      "outcome": "win"
+     }
+    },
+    {
+     "code": "CFO",
+     "image": "http://static.lolesports.com/teams/1656307849320_CFO_Logo.png",
+     "name": "CTBC Flying Oyster",
+     "record": {
+      "losses": 3,
       "wins": 1
      },
      "result": {
       "gameWins": 0,
-      "outcome": null
+      "outcome": "loss"
      }
     }
    ]
   },
   "startTime": "2026-10-29T20:00:00Z",
-  "state": "unstarted",
+  "state": "completed",
   "type": "match"
  },
  {
@@ -1592,7 +1594,9 @@
    "slug": "worlds"
   },
   "match": {
-   "flags": [],
+   "flags": [
+    "hasVod"
+   ],
    "id": "115660540726095069",
    "strategy": {
     "count": 3,
@@ -1604,12 +1608,12 @@
      "image": "http://static.lolesports.com/teams/1682322954525_Bilibili_Gaming_logo_20211.png",
      "name": "BILIBILI GAMING",
      "record": {
-      "losses": 1,
+      "losses": 2,
       "wins": 2
      },
      "result": {
-      "gameWins": 0,
-      "outcome": null
+      "gameWins": 1,
+      "outcome": "loss"
      }
     },
     {
@@ -1618,17 +1622,17 @@
      "name": "TOP ESPORTS",
      "record": {
       "losses": 1,
-      "wins": 2
+      "wins": 3
      },
      "result": {
-      "gameWins": 0,
-      "outcome": null
+      "gameWins": 2,
+      "outcome": "win"
      }
     }
    ]
   },
   "startTime": "2026-10-29T23:00:00Z",
-  "state": "unstarted",
+  "state": "completed",
   "type": "match"
  },
  {
@@ -1638,7 +1642,9 @@
    "slug": "worlds"
   },
   "match": {
-   "flags": [],
+   "flags": [
+    "hasVod"
+   ],
    "id": "115660540726095077",
    "strategy": {
     "count": 3,
@@ -1646,35 +1652,35 @@
    },
    "teams": [
     {
-     "code": "TLAW",
-     "image": "http://static.lolesports.com/teams/1769357207762_TLAlienware_Minimal_Bug-White.png",
-     "name": "Team Liquid Alienware",
-     "record": {
-      "losses": 2,
-      "wins": 1
-     },
-     "result": {
-      "gameWins": 0,
-      "outcome": null
-     }
-    },
-    {
      "code": "LOS",
      "image": "http://static.lolesports.com/teams/1784013312149_LOS-OLaranja.png",
      "name": "LOS",
      "record": {
       "losses": 2,
+      "wins": 2
+     },
+     "result": {
+      "gameWins": 2,
+      "outcome": "win"
+     }
+    },
+    {
+     "code": "TLAW",
+     "image": "http://static.lolesports.com/teams/1769357207762_TLAlienware_Minimal_Bug-White.png",
+     "name": "Team Liquid Alienware",
+     "record": {
+      "losses": 3,
       "wins": 1
      },
      "result": {
-      "gameWins": 0,
-      "outcome": null
+      "gameWins": 1,
+      "outcome": "loss"
      }
     }
    ]
   },
   "startTime": "2026-10-30T20:00:00Z",
-  "state": "unstarted",
+  "state": "completed",
   "type": "match"
  },
  {
@@ -1684,7 +1690,9 @@
    "slug": "worlds"
   },
   "match": {
-   "flags": [],
+   "flags": [
+    "hasVod"
+   ],
    "id": "115660540726095081",
    "strategy": {
     "count": 3,
@@ -1696,12 +1704,12 @@
      "image": "http://static.lolesports.com/teams/G2-FullonDark.png",
      "name": "G2 Esports",
      "record": {
-      "losses": 2,
+      "losses": 3,
       "wins": 1
      },
      "result": {
       "gameWins": 0,
-      "outcome": null
+      "outcome": "loss"
      }
     },
     {
@@ -1710,17 +1718,17 @@
      "name": "Hanwha Life Esports",
      "record": {
       "losses": 2,
-      "wins": 1
+      "wins": 2
      },
      "result": {
-      "gameWins": 0,
-      "outcome": null
+      "gameWins": 2,
+      "outcome": "win"
      }
     }
    ]
   },
   "startTime": "2026-10-30T23:00:00Z",
-  "state": "unstarted",
+  "state": "completed",
   "type": "match"
  },
  {
@@ -1738,18 +1746,30 @@
    },
    "teams": [
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "MKOI",
+     "image": "http://static.lolesports.com/teams/1734012609283_MKOI_FullColor_Blue.png",
+     "name": "Movistar KOI",
+     "record": {
+      "losses": 2,
+      "wins": 2
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     },
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "KC",
+     "image": "http://static.lolesports.com/teams/1704714951336_KC.png",
+     "name": "Karmine Corp",
+     "record": {
+      "losses": 2,
+      "wins": 2
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     }
    ]
   },
@@ -1772,18 +1792,30 @@
    },
    "teams": [
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "LOS",
+     "image": "http://static.lolesports.com/teams/1784013312149_LOS-OLaranja.png",
+     "name": "LOS",
+     "record": {
+      "losses": 2,
+      "wins": 2
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     },
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "LYON",
+     "image": "http://static.lolesports.com/teams/1743717443673_isotypelyon-03.png",
+     "name": "LYON",
+     "record": {
+      "losses": 2,
+      "wins": 2
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     }
    ]
   },
@@ -1806,18 +1838,30 @@
    },
    "teams": [
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "HLE",
+     "image": "http://static.lolesports.com/teams/1631819564399_hle-2021-worlds.png",
+     "name": "Hanwha Life Esports",
+     "record": {
+      "losses": 2,
+      "wins": 2
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     },
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "BLG",
+     "image": "http://static.lolesports.com/teams/1682322954525_Bilibili_Gaming_logo_20211.png",
+     "name": "BILIBILI GAMING",
+     "record": {
+      "losses": 2,
+      "wins": 2
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     }
    ]
   },
