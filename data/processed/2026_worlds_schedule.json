@@ -1882,7 +1882,9 @@
    "slug": "worlds"
   },
   "match": {
-   "flags": [],
+   "flags": [
+    "hasVod"
+   ],
    "id": "115660540726095109",
    "strategy": {
     "count": 5,
@@ -1890,35 +1892,35 @@
    },
    "teams": [
     {
-     "code": "TES",
-     "image": "http://static.lolesports.com/teams/1592592064571_TopEsportsTES-01-FullonDark.png",
-     "name": "TOP ESPORTS",
-     "record": {
-      "losses": 0,
-      "wins": 0
-     },
-     "result": {
-      "gameWins": 0,
-      "outcome": null
-     }
-    },
-    {
      "code": "IG",
      "image": "http://static.lolesports.com/teams/1634762917340_300px-Invictus_Gaming_logo.png",
      "name": "Invictus Gaming",
      "record": {
       "losses": 0,
+      "wins": 1
+     },
+     "result": {
+      "gameWins": 3,
+      "outcome": "win"
+     }
+    },
+    {
+     "code": "TES",
+     "image": "http://static.lolesports.com/teams/1592592064571_TopEsportsTES-01-FullonDark.png",
+     "name": "TOP ESPORTS",
+     "record": {
+      "losses": 1,
       "wins": 0
      },
      "result": {
-      "gameWins": 0,
-      "outcome": null
+      "gameWins": 1,
+      "outcome": "loss"
      }
     }
    ]
   },
   "startTime": "2026-11-03T22:00:00Z",
-  "state": "unstarted",
+  "state": "completed",
   "type": "match"
  },
  {
@@ -1944,7 +1946,7 @@
       "wins": 0
      },
      "result": {
-      "gameWins": 0,
+      "gameWins": 1,
       "outcome": null
      }
     },
@@ -1964,7 +1966,7 @@
    ]
   },
   "startTime": "2026-11-04T22:00:00Z",
-  "state": "unstarted",
+  "state": "inProgress",
   "type": "match"
  },
  {
@@ -2066,7 +2068,9 @@
    "slug": "worlds"
   },
   "match": {
-   "flags": [],
+   "flags": [
+    "isSpoiler"
+   ],
    "id": "115660540726095127",
    "strategy": {
     "count": 5,
@@ -2081,11 +2085,17 @@
      "result": null
     },
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "IG",
+     "image": "http://static.lolesports.com/teams/1634762917340_300px-Invictus_Gaming_logo.png",
+     "name": "Invictus Gaming",
+     "record": {
+      "losses": 0,
+      "wins": 1
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     }
    ]
   },
