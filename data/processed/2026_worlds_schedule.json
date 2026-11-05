@@ -1930,7 +1930,9 @@
    "slug": "worlds"
   },
   "match": {
-   "flags": [],
+   "flags": [
+    "hasVod"
+   ],
    "id": "115660540726095115",
    "strategy": {
     "count": 5,
@@ -1943,11 +1945,11 @@
      "name": "Gen.G Esports",
      "record": {
       "losses": 0,
-      "wins": 0
+      "wins": 1
      },
      "result": {
-      "gameWins": 1,
-      "outcome": null
+      "gameWins": 3,
+      "outcome": "win"
      }
     },
     {
@@ -1955,18 +1957,18 @@
      "image": "http://static.lolesports.com/teams/1743717443673_isotypelyon-03.png",
      "name": "LYON",
      "record": {
-      "losses": 0,
+      "losses": 1,
       "wins": 0
      },
      "result": {
       "gameWins": 0,
-      "outcome": null
+      "outcome": "loss"
      }
     }
    ]
   },
   "startTime": "2026-11-04T22:00:00Z",
-  "state": "inProgress",
+  "state": "completed",
   "type": "match"
  },
  {
@@ -1984,22 +1986,22 @@
    },
    "teams": [
     {
-     "code": "DK",
-     "image": "http://static.lolesports.com/teams/1673260049703_DPlusKIALOGO11.png",
-     "name": "Dplus KIA",
+     "code": "BLG",
+     "image": "http://static.lolesports.com/teams/1682322954525_Bilibili_Gaming_logo_20211.png",
+     "name": "BILIBILI GAMING",
      "record": {
       "losses": 0,
       "wins": 0
      },
      "result": {
-      "gameWins": 0,
+      "gameWins": 1,
       "outcome": null
      }
     },
     {
-     "code": "BLG",
-     "image": "http://static.lolesports.com/teams/1682322954525_Bilibili_Gaming_logo_20211.png",
-     "name": "BILIBILI GAMING",
+     "code": "DK",
+     "image": "http://static.lolesports.com/teams/1673260049703_DPlusKIALOGO11.png",
+     "name": "Dplus KIA",
      "record": {
       "losses": 0,
       "wins": 0
@@ -2012,7 +2014,7 @@
    ]
   },
   "startTime": "2026-11-05T22:00:00Z",
-  "state": "unstarted",
+  "state": "inProgress",
   "type": "match"
  },
  {
@@ -2078,11 +2080,17 @@
    },
    "teams": [
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "GEN",
+     "image": "http://static.lolesports.com/teams/1773829250929_GENGLOGO_GOLD.png",
+     "name": "Gen.G Esports",
+     "record": {
+      "losses": 0,
+      "wins": 1
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     },
     {
      "code": "IG",
