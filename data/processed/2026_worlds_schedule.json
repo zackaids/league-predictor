@@ -1896,7 +1896,7 @@
      "image": "http://static.lolesports.com/teams/1634762917340_300px-Invictus_Gaming_logo.png",
      "name": "Invictus Gaming",
      "record": {
-      "losses": 0,
+      "losses": 1,
       "wins": 1
      },
      "result": {
@@ -1945,7 +1945,7 @@
      "name": "Gen.G Esports",
      "record": {
       "losses": 0,
-      "wins": 1
+      "wins": 2
      },
      "result": {
       "gameWins": 3,
@@ -1993,7 +1993,7 @@
      "name": "BILIBILI GAMING",
      "record": {
       "losses": 0,
-      "wins": 1
+      "wins": 2
      },
      "result": {
       "gameWins": 3,
@@ -2026,7 +2026,9 @@
    "slug": "worlds"
   },
   "match": {
-   "flags": [],
+   "flags": [
+    "hasVod"
+   ],
    "id": "115660540726095103",
    "strategy": {
     "count": 5,
@@ -2038,12 +2040,12 @@
      "image": "http://static.lolesports.com/teams/1726801573959_539px-T1_2019_full_allmode.png",
      "name": "T1",
      "record": {
-      "losses": 0,
-      "wins": 0
+      "losses": 1,
+      "wins": 1
      },
      "result": {
-      "gameWins": 0,
-      "outcome": null
+      "gameWins": 3,
+      "outcome": "win"
      }
     },
     {
@@ -2051,18 +2053,18 @@
      "image": "http://static.lolesports.com/teams/1704714951336_KC.png",
      "name": "Karmine Corp",
      "record": {
-      "losses": 0,
+      "losses": 1,
       "wins": 0
      },
      "result": {
-      "gameWins": 0,
-      "outcome": null
+      "gameWins": 1,
+      "outcome": "loss"
      }
     }
    ]
   },
   "startTime": "2026-11-06T22:00:00Z",
-  "state": "unstarted",
+  "state": "completed",
   "type": "match"
  },
  {
@@ -2073,6 +2075,7 @@
   },
   "match": {
    "flags": [
+    "hasVod",
     "isSpoiler"
    ],
    "id": "115660540726095127",
@@ -2087,11 +2090,11 @@
      "name": "Gen.G Esports",
      "record": {
       "losses": 0,
-      "wins": 1
+      "wins": 2
      },
      "result": {
-      "gameWins": 0,
-      "outcome": null
+      "gameWins": 3,
+      "outcome": "win"
      }
     },
     {
@@ -2099,18 +2102,18 @@
      "image": "http://static.lolesports.com/teams/1634762917340_300px-Invictus_Gaming_logo.png",
      "name": "Invictus Gaming",
      "record": {
-      "losses": 0,
+      "losses": 1,
       "wins": 1
      },
      "result": {
       "gameWins": 0,
-      "outcome": null
+      "outcome": "loss"
      }
     }
    ]
   },
   "startTime": "2026-11-07T22:00:00Z",
-  "state": "unstarted",
+  "state": "completed",
   "type": "match"
  },
  {
@@ -2121,6 +2124,7 @@
   },
   "match": {
    "flags": [
+    "hasVod",
     "isSpoiler"
    ],
    "id": "115660540726095121",
@@ -2130,29 +2134,35 @@
    },
    "teams": [
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
-    },
-    {
      "code": "BLG",
      "image": "http://static.lolesports.com/teams/1682322954525_Bilibili_Gaming_logo_20211.png",
      "name": "BILIBILI GAMING",
      "record": {
       "losses": 0,
+      "wins": 2
+     },
+     "result": {
+      "gameWins": 3,
+      "outcome": "win"
+     }
+    },
+    {
+     "code": "T1",
+     "image": "http://static.lolesports.com/teams/1726801573959_539px-T1_2019_full_allmode.png",
+     "name": "T1",
+     "record": {
+      "losses": 1,
       "wins": 1
      },
      "result": {
-      "gameWins": 0,
-      "outcome": null
+      "gameWins": 1,
+      "outcome": "loss"
      }
     }
    ]
   },
   "startTime": "2026-11-08T22:00:00Z",
-  "state": "unstarted",
+  "state": "completed",
   "type": "match"
  },
  {
@@ -2162,7 +2172,9 @@
    "slug": "worlds"
   },
   "match": {
-   "flags": [],
+   "flags": [
+    "isSpoiler"
+   ],
    "id": "115660540726095133",
    "strategy": {
     "count": 5,
@@ -2170,18 +2182,30 @@
    },
    "teams": [
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "GEN",
+     "image": "http://static.lolesports.com/teams/1773829250929_GENGLOGO_GOLD.png",
+     "name": "Gen.G Esports",
+     "record": {
+      "losses": 0,
+      "wins": 2
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     },
     {
-     "code": "TBD",
-     "image": "https://static.lolesports.com/teams/team-tbd.png",
-     "name": "TBD",
-     "record": null,
-     "result": null
+     "code": "BLG",
+     "image": "http://static.lolesports.com/teams/1682322954525_Bilibili_Gaming_logo_20211.png",
+     "name": "BILIBILI GAMING",
+     "record": {
+      "losses": 0,
+      "wins": 2
+     },
+     "result": {
+      "gameWins": 0,
+      "outcome": null
+     }
     }
    ]
   },
