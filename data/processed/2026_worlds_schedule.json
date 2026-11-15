@@ -1944,7 +1944,7 @@
      "image": "http://static.lolesports.com/teams/1773829250929_GENGLOGO_GOLD.png",
      "name": "Gen.G Esports",
      "record": {
-      "losses": 0,
+      "losses": 1,
       "wins": 2
      },
      "result": {
@@ -1993,7 +1993,7 @@
      "name": "BILIBILI GAMING",
      "record": {
       "losses": 0,
-      "wins": 2
+      "wins": 3
      },
      "result": {
       "gameWins": 3,
@@ -2089,7 +2089,7 @@
      "image": "http://static.lolesports.com/teams/1773829250929_GENGLOGO_GOLD.png",
      "name": "Gen.G Esports",
      "record": {
-      "losses": 0,
+      "losses": 1,
       "wins": 2
      },
      "result": {
@@ -2139,7 +2139,7 @@
      "name": "BILIBILI GAMING",
      "record": {
       "losses": 0,
-      "wins": 2
+      "wins": 3
      },
      "result": {
       "gameWins": 3,
@@ -2173,6 +2173,7 @@
   },
   "match": {
    "flags": [
+    "hasVod",
     "isSpoiler"
    ],
    "id": "115660540726095133",
@@ -2186,12 +2187,12 @@
      "image": "http://static.lolesports.com/teams/1773829250929_GENGLOGO_GOLD.png",
      "name": "Gen.G Esports",
      "record": {
-      "losses": 0,
+      "losses": 1,
       "wins": 2
      },
      "result": {
-      "gameWins": 0,
-      "outcome": null
+      "gameWins": 1,
+      "outcome": "loss"
      }
     },
     {
@@ -2200,17 +2201,17 @@
      "name": "BILIBILI GAMING",
      "record": {
       "losses": 0,
-      "wins": 2
+      "wins": 3
      },
      "result": {
-      "gameWins": 0,
-      "outcome": null
+      "gameWins": 3,
+      "outcome": "win"
      }
     }
    ]
   },
   "startTime": "2026-11-14T19:00:00Z",
-  "state": "unstarted",
+  "state": "completed",
   "type": "match"
  }
 ]
